@@ -111,22 +111,22 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/items')}
+            onPress={() => router.push('/manage-categories')}
           >
             <View style={styles.iconBox}>
               <Ionicons
-                name="checkmark-outline"
+                name="pricetags-outline"
                 size={24}
                 color="#2563EB"
               />
             </View>
 
             <Text style={styles.actionTitle}>
-              Categorise
+              Manage categories
             </Text>
 
             <Text style={styles.actionSubtitle}>
-              Review item categories
+              Create and edit categories
             </Text>
           </TouchableOpacity>
 
