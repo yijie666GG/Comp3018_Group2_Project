@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   Pressable,
+  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -18,11 +19,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    console.log('Login pressed:', email, password);
+    router.replace('/(tabs)/home');
   };
 
   const handleGoogleLogin = () => {
     console.log('Google login pressed');
+    router.replace('/(tabs)/home');
   };
 
   return (
@@ -74,9 +76,13 @@ export default function LoginScreen() {
               placeholder="Enter your password"
             />
 
-            <Pressable style={styles.loginButton} onPress={handleLogin}>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLogin}
+              activeOpacity={0.7}
+            >
               <Text style={styles.loginButtonText}>Log in</Text>
-            </Pressable>
+            </TouchableOpacity>
 
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
