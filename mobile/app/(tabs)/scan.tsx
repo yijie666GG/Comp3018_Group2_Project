@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function ScanReceipt() {
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export default function ScanReceipt() {
         Take a photo or choose a receipt from your gallery.
       </Text>
 
-      {/* Receipt preview */}
+      {/* Receipt Preview */}
 
       <View style={styles.previewArea}>
         {imageUri ? (
@@ -97,6 +98,12 @@ export default function ScanReceipt() {
           />
         ) : (
           <View style={styles.emptyPreview}>
+            <Ionicons
+              name="receipt-outline"
+              size={48}
+              color="#FFFFFF"
+            />
+
             <Text style={styles.placeholder}>
               No receipt selected
             </Text>
@@ -106,14 +113,16 @@ export default function ScanReceipt() {
 
       {/* Camera */}
 
-      <Pressable
-        style={styles.cameraButton}
-        onPress={openCamera}
-      >
-        <Text style={styles.cameraIcon}>
-          📷
-        </Text>
-      </Pressable>
+<Pressable
+  style={styles.cameraButton}
+  onPress={openCamera}
+>
+  <Ionicons
+    name="camera"
+    size={30}
+    color="#FFFFFF"
+  />
+</Pressable>
 
       <Text style={styles.cameraLabel}>
         Take Photo
@@ -125,6 +134,12 @@ export default function ScanReceipt() {
         style={styles.galleryButton}
         onPress={pickImage}
       >
+        <Ionicons
+          name="images-outline"
+          size={20}
+          color="#FFFFFF"
+        />
+
         <Text style={styles.galleryText}>
           Choose from Gallery
         </Text>
@@ -133,9 +148,17 @@ export default function ScanReceipt() {
       {/* Status */}
 
       {imageUri && (
-        <Text style={styles.success}>
-          Receipt selected successfully
-        </Text>
+        <View style={styles.successContainer}>
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={20}
+            color="#16A34A"
+          />
+
+          <Text style={styles.success}>
+            Receipt selected successfully
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -144,7 +167,7 @@ export default function ScanReceipt() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
     paddingTop: 70,
   },
@@ -153,6 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
+    color: "#172033",
   },
 
   subtitle: {
@@ -180,8 +204,9 @@ const styles = StyleSheet.create({
   },
 
   placeholder: {
-    color: "#ffffff",
+    color: "#FFFFFF",
     fontSize: 16,
+    marginTop: 12,
   },
 
   image: {
@@ -189,22 +214,29 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  cameraButton: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    borderWidth: 7,
-    borderColor: "#dce1ea",
-    backgroundColor: "#ffffff",
-    alignSelf: "center",
-    marginTop: 22,
-    justifyContent: "center",
-    alignItems: "center",
+cameraButton: {
+  width: 78,
+  height: 78,
+  borderRadius: 39, // 78 / 2 = circular
+
+  backgroundColor: "#19AFC1",
+
+  alignSelf: "center",
+  marginTop: 22,
+
+  justifyContent: "center",
+  alignItems: "center",
+
+  shadowColor: "#000000",
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  shadowOffset: {
+    width: 0,
+    height: 4,
   },
 
-  cameraIcon: {
-    fontSize: 27,
-  },
+  elevation: 5,
+},
 
   cameraLabel: {
     textAlign: "center",
@@ -214,25 +246,34 @@ const styles = StyleSheet.create({
   },
 
   galleryButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#2563EB",
     borderRadius: 10,
     marginTop: 16,
     alignSelf: "center",
     paddingVertical: 13,
     paddingHorizontal: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 
   galleryText: {
-    color: "#ffffff",
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
   },
 
-  success: {
-    textAlign: "center",
+  successContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 14,
+    gap: 6,
+  },
+
+  success: {
     fontSize: 15,
-    color: "#16a34a",
+    color: "#16A34A",
     fontWeight: "600",
   },
 });
