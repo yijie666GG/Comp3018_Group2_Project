@@ -10,9 +10,7 @@ import {
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
-
 import Ionicons from "@expo/vector-icons/Ionicons";
-
 import { router } from "expo-router";
 
 export default function ScanReceipt() {
@@ -145,9 +143,8 @@ export default function ScanReceipt() {
         return;
       }
 
-      // Go to Receipt Review page
       router.push({
-        pathname: "/receipt-review",
+        pathname: "/receipt-review" as any,
         params: {
           receipt: JSON.stringify(
             data.receipt
@@ -176,8 +173,7 @@ export default function ScanReceipt() {
       </Text>
 
       <Text style={styles.subtitle}>
-        Take a photo or choose a receipt
-        from your gallery.
+        Take a photo or choose a receipt from your gallery.
       </Text>
 
       {/* Receipt Preview */}
@@ -192,73 +188,63 @@ export default function ScanReceipt() {
             resizeMode="contain"
           />
         ) : (
-          <View
-            style={
-              styles.emptyPreview
-            }
-          >
+          <View style={styles.emptyPreview}>
             <Ionicons
               name="receipt-outline"
               size={48}
               color="#FFFFFF"
             />
 
-            <Text
-              style={
-                styles.placeholder
-              }
-            >
+            <Text style={styles.placeholder}>
               No receipt selected
             </Text>
           </View>
         )}
       </View>
 
-      {/* Camera */}
+      {/* Camera + Gallery */}
 
-      <Pressable
-        style={styles.cameraButton}
-        onPress={openCamera}
-      >
-        <Ionicons
-          name="camera"
-          size={30}
-          color="#FFFFFF"
-        />
-      </Pressable>
+      <View style={styles.actionRow}>
+        {/* Camera */}
 
-      <Text
-        style={
-          styles.cameraLabel
-        }
-      >
-        Take Photo
-      </Text>
+        <View style={styles.actionItem}>
+          <Pressable
+            style={styles.roundActionButton}
+            onPress={openCamera}
+          >
+            <Ionicons
+              name="camera"
+              size={30}
+              color="#FFFFFF"
+            />
+          </Pressable>
 
-      {/* Gallery */}
+          <Text style={styles.actionLabel}>
+            Take Photo
+          </Text>
+        </View>
 
-      <Pressable
-        style={
-          styles.galleryButton
-        }
-        onPress={pickImage}
-      >
-        <Ionicons
-          name="images-outline"
-          size={20}
-          color="#FFFFFF"
-        />
+        {/* Gallery */}
 
-        <Text
-          style={
-            styles.galleryText
-          }
-        >
-          Choose from Gallery
-        </Text>
-      </Pressable>
+        <View style={styles.actionItem}>
+          <Pressable
+            style={styles.roundActionButton}
+            onPress={pickImage}
+          >
+            <Ionicons
+              name="images-outline"
+              size={30}
+              color="#FFFFFF"
+            />
+          </Pressable>
 
-      {/* Test OCR */}
+          <Text style={styles.actionLabel}>
+            Choose from Gallery
+          </Text>
+        </View>
+      </View>
+
+      {/* Test Receipt Scan */}
 
       <Pressable
         style={[
@@ -275,11 +261,7 @@ export default function ScanReceipt() {
           color="#FFFFFF"
         />
 
-        <Text
-          style={
-            styles.testScanText
-          }
-        >
+        <Text style={styles.testScanText}>
           {isScanning
             ? "Scanning..."
             : "Test Receipt Scan"}
@@ -289,24 +271,15 @@ export default function ScanReceipt() {
       {/* Status */}
 
       {imageUri && (
-        <View
-          style={
-            styles.successContainer
-          }
-        >
+        <View style={styles.successContainer}>
           <Ionicons
             name="checkmark-circle-outline"
             size={20}
             color="#16A34A"
           />
 
-          <Text
-            style={
-              styles.success
-            }
-          >
-            Receipt selected
-            successfully
+          <Text style={styles.success}>
+            Receipt selected successfully
           </Text>
         </View>
       )}
@@ -314,153 +287,146 @@ export default function ScanReceipt() {
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor:
-        "#FFFFFF",
-      paddingHorizontal: 24,
-      paddingTop: 70,
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    paddingTop: 70,
+  },
+
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#172033",
+  },
+
+  subtitle: {
+    fontSize: 15,
+    color: "#777777",
+    textAlign: "center",
+    marginTop: 12,
+    marginBottom: 25,
+  },
+
+  previewArea: {
+    width: "100%",
+    height: 430,
+    backgroundColor: "#111827",
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  emptyPreview: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  placeholder: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginTop: 12,
+  },
+
+  image: {
+    width: "100%",
+    height: "100%",
+  },
+
+  // =========================
+  // Camera + Gallery
+  // =========================
+
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    gap: 55,
+    marginTop: 22,
+  },
+
+  actionItem: {
+    alignItems: "center",
+    width: 125,
+  },
+
+  roundActionButton: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+
+    backgroundColor: "#19AFC1",
+
+    justifyContent: "center",
+    alignItems: "center",
+
+    shadowColor: "#000000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+
+    shadowOffset: {
+      width: 0,
+      height: 4,
     },
 
-    title: {
-      fontSize: 28,
-      fontWeight: "700",
-      textAlign: "center",
-      color: "#172033",
-    },
+    elevation: 5,
+  },
 
-    subtitle: {
-      fontSize: 15,
-      color: "#777777",
-      textAlign: "center",
-      marginTop: 12,
-      marginBottom: 25,
-    },
+  actionLabel: {
+    textAlign: "center",
+    marginTop: 8,
+    fontSize: 14,
+    color: "#555555",
+  },
 
-    previewArea: {
-      width: "100%",
-      height: 430,
-      backgroundColor:
-        "#111827",
-      borderRadius: 24,
-      justifyContent:
-        "center",
-      alignItems: "center",
-      overflow: "hidden",
-    },
+  // =========================
+  // Test Scan
+  // =========================
 
-    emptyPreview: {
-      flex: 1,
-      justifyContent:
-        "center",
-      alignItems: "center",
-    },
+  testScanButton: {
+    backgroundColor: "#7C3AED",
+    borderRadius: 10,
 
-    placeholder: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      marginTop: 12,
-    },
+    marginTop: 18,
+    alignSelf: "center",
 
-    image: {
-      width: "100%",
-      height: "100%",
-    },
+    paddingVertical: 13,
+    paddingHorizontal: 28,
 
-    cameraButton: {
-      width: 78,
-      height: 78,
-      borderRadius: 39,
-      backgroundColor:
-        "#19AFC1",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
 
-      alignSelf: "center",
-      marginTop: 22,
+  testScanText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 
-      justifyContent:
-        "center",
-      alignItems: "center",
+  disabledButton: {
+    opacity: 0.6,
+  },
 
-      shadowColor:
-        "#000000",
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
+  // =========================
+  // Status
+  // =========================
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+  successContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 14,
+    gap: 6,
+  },
 
-      elevation: 5,
-    },
-
-    cameraLabel: {
-      textAlign: "center",
-      marginTop: 7,
-      fontSize: 14,
-      color: "#555555",
-    },
-
-    galleryButton: {
-      backgroundColor:
-        "#2563EB",
-      borderRadius: 10,
-      marginTop: 16,
-      alignSelf: "center",
-
-      paddingVertical: 13,
-      paddingHorizontal: 28,
-
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-
-    galleryText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-
-    testScanButton: {
-      backgroundColor:
-        "#7C3AED",
-      borderRadius: 10,
-      marginTop: 12,
-      alignSelf: "center",
-
-      paddingVertical: 13,
-      paddingHorizontal: 28,
-
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-
-    testScanText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-
-    disabledButton: {
-      opacity: 0.6,
-    },
-
-    successContainer: {
-      flexDirection: "row",
-      justifyContent:
-        "center",
-      alignItems: "center",
-      marginTop: 14,
-      gap: 6,
-    },
-
-    success: {
-      fontSize: 15,
-      color: "#16A34A",
-      fontWeight: "600",
-    },
-  });
+  success: {
+    fontSize: 15,
+    color: "#16A34A",
+    fontWeight: "600",
+  },
+});
