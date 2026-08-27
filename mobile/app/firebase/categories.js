@@ -1,5 +1,5 @@
 import { collection, addDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
-import { auth, db } from "app/firebase";
+import { auth, db } from "./firebase";
 
 export async function uniqueCategories(params) {
     try{

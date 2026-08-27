@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import { API_URL } from "../../config/api";
 import {
   View,
   Text,
@@ -10,9 +10,7 @@ import {
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
-
 import Ionicons from "@expo/vector-icons/Ionicons";
-
 import { router } from "expo-router";
 
 export default function ScanReceipt() {
@@ -21,6 +19,93 @@ export default function ScanReceipt() {
 
   const [isScanning, setIsScanning] =
     useState(false);
+
+  // =========================
+  // Upload Receipt To Backend
+  // =========================
+
+  const scanUploadedReceipt = async (
+    imageUri: string
+  ) => {
+    try {
+      setIsScanning(true);
+
+      const formData = new FormData();
+
+      formData.append(
+        "receipt",
+        {
+          uri: imageUri,
+          name: "receipt.jpg",
+          type: "image/jpeg",
+        } as any
+      );
+
+const response = await fetch(
+  `${API_URL}/api/receipts/scan`,
+  {
+    method: "POST",
+    body: formData,
+  }
+);
+
+      if (!response.ok) {
+        throw new Error(
+          `Backend returned status ${response.status}`
+        );
+      }
+
+      const data =
+        await response.json();
+
+      console.log(
+        "Receipt scan result:",
+        data
+      );
+
+      if (!data.success) {
+        Alert.alert(
+          "Scan Error",
+          data.message ??
+            "Unable to scan receipt."
+        );
+
+        return;
+      }
+
+      if (!data.receipt) {
+        Alert.alert(
+          "Scan Error",
+          "No receipt data was returned."
+        );
+
+        return;
+      }
+
+      router.push({
+        pathname:
+          "/receipt-review" as any,
+
+        params: {
+          receipt: JSON.stringify(
+            data.receipt
+          ),
+        },
+      });
+    } catch (error) {
+      console.log(
+        "Receipt upload error:",
+        error
+      );
+
+      Alert.alert(
+        "Connection Error",
+        "Unable to connect to the OCR backend. Make sure the backend is running."
+      );
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   // =========================
   // Camera
@@ -50,8 +135,13 @@ export default function ScanReceipt() {
         !result.canceled &&
         result.assets.length > 0
       ) {
-        setImageUri(
-          result.assets[0].uri
+        const uri =
+          result.assets[0].uri;
+
+        setImageUri(uri);
+
+        await scanUploadedReceipt(
+          uri
         );
       }
     } catch (error) {
@@ -62,7 +152,7 @@ export default function ScanReceipt() {
 
       Alert.alert(
         "Camera Error",
-        "Unable to open the camera."
+        "Unable to open or scan the receipt."
       );
     }
   };
@@ -84,8 +174,13 @@ export default function ScanReceipt() {
         !result.canceled &&
         result.assets.length > 0
       ) {
-        setImageUri(
-          result.assets[0].uri
+        const uri =
+          result.assets[0].uri;
+
+        setImageUri(uri);
+
+        await scanUploadedReceipt(
+          uri
         );
       }
     } catch (error) {
@@ -96,7 +191,7 @@ export default function ScanReceipt() {
 
       Alert.alert(
         "Gallery Error",
-        "Unable to select the image."
+        "Unable to select or scan the image."
       );
     }
   };
@@ -109,9 +204,9 @@ export default function ScanReceipt() {
     try {
       setIsScanning(true);
 
-      const response = await fetch(
-        "http://10.0.2.2:3000/api/receipts/test-scan"
-      );
+const response = await fetch(
+  `${API_URL}/api/receipts/test-scan`
+);
 
       if (!response.ok) {
         throw new Error(
@@ -145,9 +240,10 @@ export default function ScanReceipt() {
         return;
       }
 
-      // Go to Receipt Review page
       router.push({
-        pathname: "/receipt-review",
+        pathname:
+          "/receipt-review" as any,
+
         params: {
           receipt: JSON.stringify(
             data.receipt
@@ -176,8 +272,7 @@ export default function ScanReceipt() {
       </Text>
 
       <Text style={styles.subtitle}>
-        Take a photo or choose a receipt
-        from your gallery.
+        Take a photo or choose a receipt from your gallery.
       </Text>
 
       {/* Receipt Preview */}
@@ -212,53 +307,93 @@ export default function ScanReceipt() {
             </Text>
           </View>
         )}
+
+        {/* Scanning Overlay */}
+
+        {isScanning && (
+          <View
+            style={
+              styles.scanningOverlay
+            }
+          >
+            <Ionicons
+              name="scan-outline"
+              size={42}
+              color="#FFFFFF"
+            />
+
+            <Text
+              style={
+                styles.scanningText
+              }
+            >
+              Scanning receipt...
+            </Text>
+          </View>
+        )}
       </View>
 
-      {/* Camera */}
+      {/* Camera + Gallery */}
 
-      <Pressable
-        style={styles.cameraButton}
-        onPress={openCamera}
-      >
-        <Ionicons
-          name="camera"
-          size={30}
-          color="#FFFFFF"
-        />
-      </Pressable>
+      <View style={styles.actionRow}>
+        {/* Camera */}
 
-      <Text
-        style={
-          styles.cameraLabel
-        }
-      >
-        Take Photo
-      </Text>
+        <View style={styles.actionItem}>
+          <Pressable
+            style={[
+              styles.roundActionButton,
+              isScanning &&
+                styles.disabledButton,
+            ]}
+            onPress={openCamera}
+            disabled={isScanning}
+          >
+            <Ionicons
+              name="camera"
+              size={30}
+              color="#FFFFFF"
+            />
+          </Pressable>
 
-      {/* Gallery */}
+          <Text
+            style={
+              styles.actionLabel
+            }
+          >
+            Take Photo
+          </Text>
+        </View>
 
-      <Pressable
-        style={
-          styles.galleryButton
-        }
-        onPress={pickImage}
-      >
-        <Ionicons
-          name="images-outline"
-          size={20}
-          color="#FFFFFF"
-        />
+        {/* Gallery */}
 
-        <Text
-          style={
-            styles.galleryText
-          }
-        >
-          Choose from Gallery
-        </Text>
-      </Pressable>
+        <View style={styles.actionItem}>
+          <Pressable
+            style={[
+              styles.roundActionButton,
+              isScanning &&
+                styles.disabledButton,
+            ]}
+            onPress={pickImage}
+            disabled={isScanning}
+          >
+            <Ionicons
+              name="images-outline"
+              size={30}
+              color="#FFFFFF"
+            />
+          </Pressable>
 
-      {/* Test OCR */}
+          <Text
+            style={
+              styles.actionLabel
+            }
+          >
+            Choose from Gallery
+          </Text>
+        </View>
+      </View>
+
+      {/* Test Receipt Scan */}
 
       <Pressable
         style={[
@@ -288,28 +423,28 @@ export default function ScanReceipt() {
 
       {/* Status */}
 
-      {imageUri && (
-        <View
-          style={
-            styles.successContainer
-          }
-        >
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={20}
-            color="#16A34A"
-          />
-
-          <Text
+      {imageUri &&
+        !isScanning && (
+          <View
             style={
-              styles.success
+              styles.successContainer
             }
           >
-            Receipt selected
-            successfully
-          </Text>
-        </View>
-      )}
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={20}
+              color="#16A34A"
+            />
+
+            <Text
+              style={
+                styles.success
+              }
+            >
+              Receipt selected successfully
+            </Text>
+          </View>
+        )}
     </View>
   );
 }
@@ -349,6 +484,7 @@ const styles =
         "center",
       alignItems: "center",
       overflow: "hidden",
+      position: "relative",
     },
 
     emptyPreview: {
@@ -369,23 +505,65 @@ const styles =
       height: "100%",
     },
 
-    cameraButton: {
-      width: 78,
-      height: 78,
-      borderRadius: 39,
-      backgroundColor:
-        "#19AFC1",
+    // =========================
+    // Scanning Overlay
+    // =========================
 
-      alignSelf: "center",
-      marginTop: 22,
+    scanningOverlay: {
+      ...StyleSheet.absoluteFillObject,
+
+      backgroundColor:
+        "rgba(17,24,39,0.78)",
 
       justifyContent:
         "center",
+
+      alignItems: "center",
+    },
+
+    scanningText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+      marginTop: 12,
+    },
+
+    // =========================
+    // Camera + Gallery
+    // =========================
+
+    actionRow: {
+      flexDirection: "row",
+      justifyContent:
+        "center",
+      alignItems: "flex-start",
+      gap: 55,
+      marginTop: 22,
+    },
+
+    actionItem: {
+      alignItems: "center",
+      width: 125,
+    },
+
+    roundActionButton: {
+      width: 78,
+      height: 78,
+      borderRadius: 39,
+
+      backgroundColor:
+        "#19AFC1",
+
+      justifyContent:
+        "center",
+
       alignItems: "center",
 
       shadowColor:
         "#000000",
+
       shadowOpacity: 0.15,
+
       shadowRadius: 8,
 
       shadowOffset: {
@@ -396,46 +574,35 @@ const styles =
       elevation: 5,
     },
 
-    cameraLabel: {
+    actionLabel: {
       textAlign: "center",
-      marginTop: 7,
+      marginTop: 8,
       fontSize: 14,
       color: "#555555",
     },
 
-    galleryButton: {
-      backgroundColor:
-        "#2563EB",
-      borderRadius: 10,
-      marginTop: 16,
-      alignSelf: "center",
-
-      paddingVertical: 13,
-      paddingHorizontal: 28,
-
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-
-    galleryText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
+    // =========================
+    // Test Scan
+    // =========================
 
     testScanButton: {
       backgroundColor:
         "#7C3AED",
+
       borderRadius: 10,
-      marginTop: 12,
+
+      marginTop: 18,
+
       alignSelf: "center",
 
       paddingVertical: 13,
+
       paddingHorizontal: 28,
 
       flexDirection: "row",
+
       alignItems: "center",
+
       gap: 8,
     },
 
@@ -446,15 +613,23 @@ const styles =
     },
 
     disabledButton: {
-      opacity: 0.6,
+      opacity: 0.55,
     },
+
+    // =========================
+    // Status
+    // =========================
 
     successContainer: {
       flexDirection: "row",
+
       justifyContent:
         "center",
+
       alignItems: "center",
+
       marginTop: 14,
+
       gap: 6,
     },
 

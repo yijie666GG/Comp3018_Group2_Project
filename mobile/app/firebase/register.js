@@ -1,6 +1,6 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "app/firebase";
+import { auth, db } from "./firebase";
 
 //create user logic 
 export async function register(name, email, password) {
