@@ -552,7 +552,7 @@ const styles =
       borderRadius: 39,
 
       backgroundColor:
-        "#19AFC1",
+        "#2563EB",
 
       justifyContent:
         "center",
