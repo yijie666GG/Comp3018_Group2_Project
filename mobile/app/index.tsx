@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
+import { login } from '../firebase/login';
 
 import {
   View,
@@ -10,16 +11,33 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('alex@example.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    router.replace('/(tabs)/home');
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Missing information', 'Please enter your email and password.');
+      return;
+    }
+
+    try {
+      await login(email, password);
+
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.log('Login error:', error);
+
+      Alert.alert(
+        'Login failed',
+        'Incorrect email or password. Please try again.'
+      );
+    }
   };
 
   const handleGoogleLogin = () => {

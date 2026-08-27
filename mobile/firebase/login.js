@@ -2,7 +2,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "./firebase";
 
 export async function login(email, password) {
-    try{
+    try {
         const userLoginDetails = await signInWithEmailAndPassword(
             auth,
             email.trim().toLowerCase(),
@@ -10,8 +10,10 @@ export async function login(email, password) {
         );
 
         console.log('Login successful');
-    }
-    catch (error){
+
+        return userLoginDetails;
+    } catch (error) {
         console.log('Login error: ', error);
+        throw error;
     }
 }
