@@ -7,8 +7,14 @@ export async function resetPassword(email) {
             auth,
             email.trim().toLowerCase()
         );
-    } 
-    catch (error) {
-        console.log("There has been an error trying to reset password: ", error);
+
+        console.log("Password reset email sent");
+    } catch (error) {
+        console.log(
+            "There has been an error trying to reset password: ",
+            error
+        );
+
+        throw error;
     }
 }
