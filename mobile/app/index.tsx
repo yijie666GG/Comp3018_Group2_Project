@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+
 import { login } from '../firebase/login';
+import { auth } from '../firebase/firebase';
 
 import {
   View,
@@ -20,9 +23,22 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.replace('/(tabs)/home');
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Missing information', 'Please enter your email and password.');
+      Alert.alert(
+        'Missing information',
+        'Please enter your email and password.'
+      );
       return;
     }
 
@@ -42,7 +58,8 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = () => {
     console.log('Google login pressed');
-    router.replace('/(tabs)/home');
+
+    // Google Firebase authentication will be added next.
   };
 
   return (
@@ -110,7 +127,10 @@ export default function LoginScreen() {
               <View style={styles.divider} />
             </View>
 
-            <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
+            <Pressable
+              style={styles.googleButton}
+              onPress={handleGoogleLogin}
+            >
               <Text style={styles.googleText}>G</Text>
               <Text style={styles.googleButtonText}>Google</Text>
             </Pressable>
