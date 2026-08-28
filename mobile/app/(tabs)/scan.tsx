@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { API_URL } from "../../config/api";
+
 import {
   View,
   Text,
@@ -25,7 +26,9 @@ export default function ScanReceipt() {
   // =========================
 
   const scanUploadedReceipt = async (
-    imageUri: string
+    imageUri: string,
+    fileName: string = "receipt.jpg",
+    mimeType: string = "image/jpeg"
   ) => {
     try {
       setIsScanning(true);
@@ -36,20 +39,48 @@ export default function ScanReceipt() {
         "receipt",
         {
           uri: imageUri,
-          name: "receipt.jpg",
-          type: "image/jpeg",
+          name: fileName,
+          type: mimeType,
         } as any
       );
 
-const response = await fetch(
-  `${API_URL}/api/receipts/scan`,
-  {
-    method: "POST",
-    body: formData,
-  }
-);
+      console.log(
+        "Uploading receipt:"
+      );
+
+      console.log(
+        "URI:",
+        imageUri
+      );
+
+      console.log(
+        "File name:",
+        fileName
+      );
+
+      console.log(
+        "Mime type:",
+        mimeType
+      );
+
+      const response = await fetch(
+        `${API_URL}/api/receipts/scan`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
+        const errorText =
+          await response.text();
+
+        console.log(
+          "Backend response:",
+          response.status,
+          errorText
+        );
+
         throw new Error(
           `Backend returned status ${response.status}`
         );
@@ -99,8 +130,8 @@ const response = await fetch(
       );
 
       Alert.alert(
-        "Connection Error",
-        "Unable to connect to the OCR backend. Make sure the backend is running."
+        "Scan Error",
+        "Unable to upload or scan the receipt."
       );
     } finally {
       setIsScanning(false);
@@ -128,20 +159,31 @@ const response = await fetch(
       const result =
         await ImagePicker.launchCameraAsync({
           allowsEditing: false,
-          quality: 1,
+          quality: 0.8,
         });
 
       if (
         !result.canceled &&
         result.assets.length > 0
       ) {
-        const uri =
-          result.assets[0].uri;
+        const asset =
+          result.assets[0];
 
-        setImageUri(uri);
+        console.log(
+          "Camera result:",
+          asset
+        );
+
+        setImageUri(
+          asset.uri
+        );
 
         await scanUploadedReceipt(
-          uri
+          asset.uri,
+          asset.fileName ??
+            `camera-receipt-${Date.now()}.jpg`,
+          asset.mimeType ??
+            "image/jpeg"
         );
       }
     } catch (error) {
@@ -197,73 +239,8 @@ const response = await fetch(
   };
 
   // =========================
-  // Test Receipt OCR
+  // UI
   // =========================
-
-  const testScan = async () => {
-    try {
-      setIsScanning(true);
-
-const response = await fetch(
-  `${API_URL}/api/receipts/test-scan`
-);
-
-      if (!response.ok) {
-        throw new Error(
-          `Backend returned status ${response.status}`
-        );
-      }
-
-      const data =
-        await response.json();
-
-      console.log(
-        "Test scan result:",
-        data
-      );
-
-      if (!data.success) {
-        Alert.alert(
-          "Scan Error",
-          "Unable to scan test receipt."
-        );
-
-        return;
-      }
-
-      if (!data.receipt) {
-        Alert.alert(
-          "Scan Error",
-          "No receipt data was returned."
-        );
-
-        return;
-      }
-
-      router.push({
-        pathname:
-          "/receipt-review" as any,
-
-        params: {
-          receipt: JSON.stringify(
-            data.receipt
-          ),
-        },
-      });
-    } catch (error) {
-      console.log(
-        "Test scan error:",
-        error
-      );
-
-      Alert.alert(
-        "Connection Error",
-        "Unable to connect to the OCR backend. Make sure the backend is running on port 3000."
-      );
-    } finally {
-      setIsScanning(false);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -275,7 +252,9 @@ const response = await fetch(
         Take a photo or choose a receipt from your gallery.
       </Text>
 
-      {/* Receipt Preview */}
+      {/* =========================
+          Receipt Preview
+      ========================= */}
 
       <View style={styles.previewArea}>
         {imageUri ? (
@@ -333,7 +312,9 @@ const response = await fetch(
         )}
       </View>
 
-      {/* Camera + Gallery */}
+      {/* =========================
+          Camera + Gallery
+      ========================= */}
 
       <View style={styles.actionRow}>
         {/* Camera */}
@@ -345,8 +326,12 @@ const response = await fetch(
               isScanning &&
                 styles.disabledButton,
             ]}
-            onPress={openCamera}
-            disabled={isScanning}
+            onPress={
+              openCamera
+            }
+            disabled={
+              isScanning
+            }
           >
             <Ionicons
               name="camera"
@@ -373,8 +358,12 @@ const response = await fetch(
               isScanning &&
                 styles.disabledButton,
             ]}
-            onPress={pickImage}
-            disabled={isScanning}
+            onPress={
+              pickImage
+            }
+            disabled={
+              isScanning
+            }
           >
             <Ionicons
               name="images-outline"
@@ -393,35 +382,9 @@ const response = await fetch(
         </View>
       </View>
 
-      {/* Test Receipt Scan */}
-
-      <Pressable
-        style={[
-          styles.testScanButton,
-          isScanning &&
-            styles.disabledButton,
-        ]}
-        onPress={testScan}
-        disabled={isScanning}
-      >
-        <Ionicons
-          name="scan-outline"
-          size={20}
-          color="#FFFFFF"
-        />
-
-        <Text
-          style={
-            styles.testScanText
-          }
-        >
-          {isScanning
-            ? "Scanning..."
-            : "Test Receipt Scan"}
-        </Text>
-      </Pressable>
-
-      {/* Status */}
+      {/* =========================
+          Status
+      ========================= */}
 
       {imageUri &&
         !isScanning && (
@@ -449,6 +412,10 @@ const response = await fetch(
   );
 }
 
+// =========================
+// Styles
+// =========================
+
 const styles =
   StyleSheet.create({
     container: {
@@ -474,35 +441,59 @@ const styles =
       marginBottom: 25,
     },
 
+    // =========================
+    // Receipt Preview
+    // =========================
+
     previewArea: {
       width: "100%",
       height: 430,
+
       backgroundColor:
         "#111827",
+
       borderRadius: 24,
+
       justifyContent:
         "center",
-      alignItems: "center",
-      overflow: "hidden",
-      position: "relative",
+
+      alignItems:
+        "center",
+
+      overflow:
+        "hidden",
+
+      position:
+        "relative",
     },
 
     emptyPreview: {
       flex: 1,
+
       justifyContent:
         "center",
-      alignItems: "center",
+
+      alignItems:
+        "center",
     },
 
     placeholder: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      marginTop: 12,
+      color:
+        "#FFFFFF",
+
+      fontSize:
+        16,
+
+      marginTop:
+        12,
     },
 
     image: {
-      width: "100%",
-      height: "100%",
+      width:
+        "100%",
+
+      height:
+        "100%",
     },
 
     // =========================
@@ -518,14 +509,22 @@ const styles =
       justifyContent:
         "center",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     scanningText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-      marginTop: 12,
+      color:
+        "#FFFFFF",
+
+      fontSize:
+        16,
+
+      fontWeight:
+        "600",
+
+      marginTop:
+        12,
     },
 
     // =========================
@@ -533,23 +532,39 @@ const styles =
     // =========================
 
     actionRow: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
+
       justifyContent:
         "center",
-      alignItems: "flex-start",
-      gap: 55,
-      marginTop: 22,
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        55,
+
+      marginTop:
+        22,
     },
 
     actionItem: {
-      alignItems: "center",
-      width: 125,
+      alignItems:
+        "center",
+
+      width:
+        125,
     },
 
     roundActionButton: {
-      width: 78,
-      height: 78,
-      borderRadius: 39,
+      width:
+        78,
+
+      height:
+        78,
+
+      borderRadius:
+        39,
 
       backgroundColor:
         "#2563EB",
@@ -557,63 +572,48 @@ const styles =
       justifyContent:
         "center",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       shadowColor:
         "#000000",
 
-      shadowOpacity: 0.15,
+      shadowOpacity:
+        0.15,
 
-      shadowRadius: 8,
+      shadowRadius:
+        8,
 
       shadowOffset: {
         width: 0,
         height: 4,
       },
 
-      elevation: 5,
+      elevation:
+        5,
     },
 
     actionLabel: {
-      textAlign: "center",
-      marginTop: 8,
-      fontSize: 14,
-      color: "#555555",
+      textAlign:
+        "center",
+
+      marginTop:
+        8,
+
+      fontSize:
+        14,
+
+      color:
+        "#555555",
     },
 
     // =========================
-    // Test Scan
+    // Disabled
     // =========================
-
-    testScanButton: {
-      backgroundColor:
-        "#7C3AED",
-
-      borderRadius: 10,
-
-      marginTop: 18,
-
-      alignSelf: "center",
-
-      paddingVertical: 13,
-
-      paddingHorizontal: 28,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap: 8,
-    },
-
-    testScanText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
 
     disabledButton: {
-      opacity: 0.55,
+      opacity:
+        0.55,
     },
 
     // =========================
@@ -621,21 +621,30 @@ const styles =
     // =========================
 
     successContainer: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       justifyContent:
         "center",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      marginTop: 14,
+      marginTop:
+        14,
 
-      gap: 6,
+      gap:
+        6,
     },
 
     success: {
-      fontSize: 15,
-      color: "#16A34A",
-      fontWeight: "600",
+      fontSize:
+        15,
+
+      color:
+        "#16A34A",
+
+      fontWeight:
+        "600",
     },
   });
