@@ -143,22 +143,32 @@ router.post(
       // 1. OCR
       // ===========================
 
-      const text =
-        await scanReceiptImage(
-          imagePath
-        );
+const text =
+  await scanReceiptImage(
+    imagePath
+  );
 
-      console.log(
-        "OCR completed"
-      );
+console.log(
+  "OCR completed"
+);
+
+console.log(
+  "========== OCR TEXT =========="
+);
+
+console.log(text);
+
+console.log(
+  "=============================="
+);
 
 
-      // ===========================
-      // 2. Parse receipt
-      // ===========================
+// ===========================
+// 2. Parse receipt
+// ===========================
 
-      const receipt =
-        parseReceipt(text);
+const receipt =
+  parseReceipt(text);
 
 
       // ===========================
