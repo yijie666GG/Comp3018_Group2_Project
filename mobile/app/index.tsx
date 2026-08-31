@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 import { login } from '../firebase/login';
 import { auth } from '../firebase/firebase';
+import { googleLogin } from '../firebase/google-login';
 
 import {
   View,
@@ -56,10 +57,19 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleLogin = () => {
-    console.log('Google login pressed');
+  const handleGoogleLogin = async () => {
+    try {
+      await googleLogin();
 
-    // Google Firebase authentication will be added next.
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.log('Google login error:', error);
+
+      Alert.alert(
+        'Google login failed',
+        'Unable to sign in with Google. Please try again.'
+      );
+    }
   };
 
   return (
