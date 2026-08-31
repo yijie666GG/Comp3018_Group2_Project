@@ -4,13 +4,13 @@ import { auth, db } from "./firebase";
 
 //create user logic 
 export async function register(name, email, password) {
-    try{
+    try {
         const userCredential = await createUserWithEmailAndPassword(
             auth,
             email.trim().toLowerCase(),
             password
         );
-        
+
         const user = userCredential.user;
 
         await setDoc(doc(db, 'users', user.uid), {
@@ -20,7 +20,8 @@ export async function register(name, email, password) {
         });
         console.log('Account created successfully');
     }
-    catch(error){
+    catch (error) {
         console.log("There has been an error with user registration: ", error);
+        throw error;
     }
 }

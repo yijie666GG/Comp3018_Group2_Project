@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+
+import { login } from '../firebase/login';
+import { auth } from '../firebase/firebase';
+import { googleLogin } from '../firebase/google-login';
 
 import {
   View,
@@ -10,21 +15,61 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('alex@example.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    router.replace('/(tabs)/home');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.replace('/(tabs)/home');
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert(
+        'Missing information',
+        'Please enter your email and password.'
+      );
+      return;
+    }
+
+    try {
+      await login(email, password);
+
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.log('Login error:', error);
+
+      Alert.alert(
+        'Login failed',
+        'Incorrect email or password. Please try again.'
+      );
+    }
   };
 
-  const handleGoogleLogin = () => {
-    console.log('Google login pressed');
-    router.replace('/(tabs)/home');
+  const handleGoogleLogin = async () => {
+    try {
+      await googleLogin();
+
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.log('Google login error:', error);
+
+      Alert.alert(
+        'Google login failed',
+        'Unable to sign in with Google. Please try again.'
+      );
+    }
   };
 
   return (
@@ -92,7 +137,10 @@ export default function LoginScreen() {
               <View style={styles.divider} />
             </View>
 
-            <Pressable style={styles.googleButton} onPress={handleGoogleLogin}>
+            <Pressable
+              style={styles.googleButton}
+              onPress={handleGoogleLogin}
+            >
               <Text style={styles.googleText}>G</Text>
               <Text style={styles.googleButtonText}>Google</Text>
             </Pressable>

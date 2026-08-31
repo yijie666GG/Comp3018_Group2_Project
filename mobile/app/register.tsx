@@ -6,9 +6,11 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { register } from '../firebase/register';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
@@ -16,8 +18,38 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleCreateAccount = () => {
-    console.log('Create account:', name, email);
+  const handleCreateAccount = async () => {
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+      Alert.alert('Missing information', 'Please complete all fields.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Password mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    try {
+      await register(name, email, password);
+
+      Alert.alert(
+        'Account created',
+        'Your account has been created successfully.',
+        [
+          {
+            text: 'Continue',
+            onPress: () => router.replace('/(tabs)/home'),
+          },
+        ]
+      );
+    } catch (error) {
+      console.log('Register error:', error);
+
+      Alert.alert(
+        'Registration failed',
+        'Unable to create your account. Please try again.'
+      );
+    }
   };
 
   return (
