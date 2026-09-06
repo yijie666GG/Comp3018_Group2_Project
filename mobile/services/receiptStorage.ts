@@ -1,6 +1,18 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 
-const RECEIPTS_STORAGE_KEY = "saved_receipts";
+import {
+  auth,
+  db,
+} from "../firebase/firebase";
 
 export type SavedReceiptItem = {
   name: string;
@@ -19,51 +31,198 @@ export type SavedReceipt = {
   createdAt: string;
 };
 
+/*
+========================================
+Get current user's receipt collection
+========================================
+*/
+
+function getCurrentUserReceiptsCollection() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("User is not logged in.");
+  }
+
+  return collection(
+    db,
+    "users",
+    user.uid,
+    "receipts"
+  );
+}
+
+/*
+========================================
+Get Receipts
+========================================
+*/
+
 export async function getReceipts(): Promise<SavedReceipt[]> {
   try {
-    const data = await AsyncStorage.getItem(RECEIPTS_STORAGE_KEY);
+    const receiptsRef =
+      getCurrentUserReceiptsCollection();
 
-    if (!data) {
-      return [];
-    }
+    const receiptsQuery = query(
+      receiptsRef,
+      orderBy("createdAt", "desc")
+    );
 
-    return JSON.parse(data);
+    const snapshot = await getDocs(receiptsQuery);
+
+    return snapshot.docs.map((receiptDoc) => {
+      const data = receiptDoc.data();
+
+      return {
+        id: receiptDoc.id,
+
+        store:
+          typeof data.store === "string"
+            ? data.store
+            : null,
+
+        date:
+          typeof data.date === "string"
+            ? data.date
+            : null,
+
+        time:
+          typeof data.time === "string"
+            ? data.time
+            : null,
+
+        total:
+          typeof data.total === "number"
+            ? data.total
+            : null,
+
+        gst:
+          typeof data.gst === "number"
+            ? data.gst
+            : null,
+
+        items: Array.isArray(data.items)
+          ? data.items
+          : [],
+
+        createdAt:
+          data.createdAt?.toDate?.().toISOString?.() ??
+          "",
+      };
+    });
   } catch (error) {
-    console.error("Failed to load receipts:", error);
+    console.error(
+      "Failed to load receipts from Firebase:",
+      error
+    );
+
     return [];
   }
 }
 
+/*
+========================================
+Save Receipt
+========================================
+*/
+
 export async function saveReceipt(
   receipt: Omit<SavedReceipt, "id" | "createdAt">
 ): Promise<SavedReceipt> {
-  const receipts = await getReceipts();
+  const user = auth.currentUser;
 
-  const newReceipt: SavedReceipt = {
-    ...receipt,
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString(),
-  };
+  if (!user) {
+    throw new Error("User is not logged in.");
+  }
 
-  const updatedReceipts = [newReceipt, ...receipts];
+  try {
+    const receiptsRef = collection(
+      db,
+      "users",
+      user.uid,
+      "receipts"
+    );
 
-  await AsyncStorage.setItem(
-    RECEIPTS_STORAGE_KEY,
-    JSON.stringify(updatedReceipts)
-  );
+    const receiptData = {
+      userId: user.uid,
 
-  return newReceipt;
+      store: receipt.store,
+      date: receipt.date,
+      time: receipt.time,
+
+      total: receipt.total,
+      gst: receipt.gst,
+
+      items: receipt.items,
+
+      createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(
+      receiptsRef,
+      receiptData
+    );
+
+    const savedReceipt: SavedReceipt = {
+      ...receipt,
+
+      id: docRef.id,
+
+      createdAt: new Date().toISOString(),
+    };
+
+    console.log(
+      "Receipt saved to Firebase:",
+      docRef.id
+    );
+
+    return savedReceipt;
+  } catch (error) {
+    console.error(
+      "Failed to save receipt to Firebase:",
+      error
+    );
+
+    throw error;
+  }
 }
 
-export async function deleteReceipt(id: string): Promise<void> {
-  const receipts = await getReceipts();
+/*
+========================================
+Delete Receipt
+========================================
+*/
 
-  const updatedReceipts = receipts.filter(
-    (receipt) => receipt.id !== id
-  );
+export async function deleteReceipt(
+  id: string
+): Promise<void> {
+  const user = auth.currentUser;
 
-  await AsyncStorage.setItem(
-    RECEIPTS_STORAGE_KEY,
-    JSON.stringify(updatedReceipts)
-  );
+  if (!user) {
+    throw new Error("User is not logged in.");
+  }
+
+  try {
+    const receiptRef = doc(
+      db,
+      "users",
+      user.uid,
+      "receipts",
+      id
+    );
+
+    await deleteDoc(receiptRef);
+
+    console.log(
+      "Receipt deleted from Firebase:",
+      id
+    );
+  } catch (error) {
+    console.error(
+      "Failed to delete receipt from Firebase:",
+      error
+    );
+
+    throw error;
+  }
 }
