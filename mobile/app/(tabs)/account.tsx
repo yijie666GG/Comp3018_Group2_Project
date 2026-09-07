@@ -4,13 +4,50 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { signOut } from 'firebase/auth';
+
+import { auth } from '../../firebase/firebase';
 
 export default function AccountScreen() {
+  const handleLogout = () => {
+    Alert.alert(
+      'Log out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+
+              console.log('Logout successful');
+
+              router.replace('/');
+            } catch (error) {
+              console.log('Logout error:', error);
+
+              Alert.alert(
+                'Logout failed',
+                'Unable to log out. Please try again.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -30,6 +67,7 @@ export default function AccountScreen() {
 
           <View>
             <Text style={styles.profileTitle}>Your account</Text>
+
             <Text style={styles.profileSubtitle}>
               Manage your personal settings
             </Text>
@@ -53,7 +91,10 @@ export default function AccountScreen() {
             </View>
 
             <View>
-              <Text style={styles.menuTitle}>Personal information</Text>
+              <Text style={styles.menuTitle}>
+                Personal information
+              </Text>
+
               <Text style={styles.menuSubtitle}>
                 Name, email and account details
               </Text>
@@ -82,7 +123,10 @@ export default function AccountScreen() {
             </View>
 
             <View>
-              <Text style={styles.menuTitle}>Notifications</Text>
+              <Text style={styles.menuTitle}>
+                Notifications
+              </Text>
+
               <Text style={styles.menuSubtitle}>
                 Financial year reminder
               </Text>
@@ -111,7 +155,10 @@ export default function AccountScreen() {
             </View>
 
             <View>
-              <Text style={styles.menuTitle}>Financial years</Text>
+              <Text style={styles.menuTitle}>
+                Financial years
+              </Text>
+
               <Text style={styles.menuSubtitle}>
                 View and manage financial years
               </Text>
@@ -128,7 +175,7 @@ export default function AccountScreen() {
         <TouchableOpacity
           style={styles.logoutButton}
           activeOpacity={0.7}
-          onPress={() => router.replace('/')}
+          onPress={handleLogout}
         >
           <Ionicons
             name="log-out-outline"

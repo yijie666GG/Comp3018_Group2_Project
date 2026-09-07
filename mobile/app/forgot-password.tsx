@@ -5,17 +5,43 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { resetPassword } from '../firebase/forgot-password';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
 
-  const handleReset = () => {
-    console.log('Reset password for:', email);
-  };
+  const handleReset = async () => {
+    if (!email.trim()) {
+      Alert.alert('Missing email', 'Please enter your email address.');
+      return;
+    }
 
+    try {
+      await resetPassword(email);
+
+      Alert.alert(
+        'Reset email sent',
+        'Check your email for the password reset link.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.log('Password reset error:', error);
+
+      Alert.alert(
+        'Reset failed',
+        'Unable to send the reset email. Please check the email and try again.'
+      );
+    }
+  };
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.content}>
