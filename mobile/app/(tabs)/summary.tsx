@@ -1,220 +1,389 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+  ActivityIndicator,
+} from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect } from "expo-router";
+import { getReceipts, SavedReceipt } from "../../services/receiptStorage";
 
-type FinancialYear = '2024-2025' | '2025-2026' | '2026-2027';
+type FinancialYear = "2024-2025" | "2025-2026" | "2026-2027";
 
 type Expense = {
+  id: string;
   name: string;
   merchant: string;
   date: string;
   category: string;
   amount: number;
-  icon: string;
 };
 
-const summaryData = {
-  '2024-2025': {
-    total: 0,
-    receipts: 0,
-    categories: 0,
-    spending: [],
-    expenses: [],
-  },
-
-  '2025-2026': {
-    total: 564.4,
-    receipts: 5,
-    categories: 4,
-
-    spending: [
-      {
-        category: 'Technology',
-        items: 2,
-        amount: 438,
-        percentage: 78,
-      },
-      {
-        category: 'Home Office',
-        items: 1,
-        amount: 80,
-        percentage: 14,
-      },
-      {
-        category: 'Travel',
-        items: 1,
-        amount: 26.4,
-        percentage: 5,
-      },
-      {
-        category: 'Work',
-        items: 1,
-        amount: 20,
-        percentage: 4,
-      },
-    ],
-
-    expenses: [
-      {
-        name: 'USB-C Hub',
-        merchant: 'Officeworks',
-        date: '4 Aug 2025',
-        category: 'Technology',
-        amount: 89,
-        icon: 'U',
-      },
-      {
-        name: 'Notebook',
-        merchant: 'Officeworks',
-        date: '4 Aug 2025',
-        category: 'Work',
-        amount: 20,
-        icon: 'N',
-      },
-      {
-        name: 'Desk Lamp',
-        merchant: 'Officeworks',
-        date: '4 Aug 2025',
-        category: 'Home Office',
-        amount: 80,
-        icon: 'D',
-      },
-      {
-        name: 'Airport trip',
-        merchant: 'Uber',
-        date: '2 Sep 2025',
-        category: 'Travel',
-        amount: 26.4,
-        icon: 'A',
-      },
-      {
-        name: 'Monitor',
-        merchant: 'JB Hi-Fi',
-        date: '18 Feb 2026',
-        category: 'Technology',
-        amount: 349,
-        icon: 'M',
-      },
-    ],
-  },
-
-  '2026-2027': {
-    total: 0,
-    receipts: 0,
-    categories: 0,
-    spending: [],
-    expenses: [],
-  },
+type CategorySummary = {
+  name: string;
+  amount: number;
+  percentage: number;
+  count: number;
 };
 
-export default function SummaryScreen() {
+const financialYears: FinancialYear[] = [
+  "2024-2025",
+  "2025-2026",
+  "2026-2027",
+];
+
+const getFinancialYear = (dateString: string | null): FinancialYear | null => {
+  if (!dateString) {
+    return null;
+  }
+
+  let date: Date | null = null;
+
+  // Handles YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [year, month, day] = dateString.split("-").map(Number);
+    date = new Date(year, month - 1, day);
+  }
+
+  // Handles DD/MM/YYYY
+  else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateString)) {
+    const [day, month, year] = dateString.split("/").map(Number);
+    date = new Date(year, month - 1, day);
+  }
+
+  // Handles DD-MM-YYYY
+  else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateString)) {
+    const [day, month, year] = dateString.split("-").map(Number);
+    date = new Date(year, month - 1, day);
+  }
+
+  // Handles other dates recognised by JavaScript
+  else {
+    const parsed = new Date(dateString);
+
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  }
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+
+  // Australian financial year:
+  // 1 July -> 30 June
+  if (month >= 7) {
+    return `${year}-${year + 1}` as FinancialYear;
+  }
+
+  return `${year - 1}-${year}` as FinancialYear;
+};
+
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) {
+    return "Unknown date";
+  }
+
+  return dateString;
+};
+
+export default function Summary() {
   const [selectedYear, setSelectedYear] =
-    useState<FinancialYear>('2025-2026');
+    useState<FinancialYear>("2025-2026");
 
-  const data = summaryData[selectedYear];
+  const [receipts, setReceipts] = useState<SavedReceipt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [yearMenuVisible, setYearMenuVisible] = useState(false);
+
+  // ==========================================
+  // Load receipts whenever Summary is opened
+  // ==========================================
+
+  const loadReceipts = async () => {
+    try {
+      setLoading(true);
+
+      const savedReceipts = await getReceipts();
+
+      setReceipts(savedReceipts);
+    } catch (error) {
+      console.error("Failed to load summary receipts:", error);
+      setReceipts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadReceipts();
+    }, [])
+  );
+
+  // ==========================================
+  // Filter receipts by financial year
+  // ==========================================
+
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter((receipt) => {
+      return getFinancialYear(receipt.date) === selectedYear;
+    });
+  }, [receipts, selectedYear]);
+
+  // ==========================================
+  // Total expenses
+  // ==========================================
+
+  const totalExpenses = useMemo(() => {
+    return filteredReceipts.reduce((total, receipt) => {
+      if (receipt.total !== null && !Number.isNaN(receipt.total)) {
+        return total + receipt.total;
+      }
+
+      // Fallback to item prices if receipt total is unavailable
+      const itemTotal = receipt.items.reduce(
+        (sum, item) => sum + item.price,
+        0
+      );
+
+      return total + itemTotal;
+    }, 0);
+  }, [filteredReceipts]);
+
+  // ==========================================
+  // Number of receipts
+  // ==========================================
+
+  const receiptCount = filteredReceipts.length;
+
+  // ==========================================
+  // Convert receipt items into expenses
+  // ==========================================
+
+  const expenses = useMemo<Expense[]>(() => {
+    const result: Expense[] = [];
+
+    filteredReceipts.forEach((receipt) => {
+      receipt.items.forEach((item, itemIndex) => {
+        result.push({
+          id: `${receipt.id}-${itemIndex}`,
+          name: item.name,
+          merchant: receipt.store ?? "Unknown",
+          date: receipt.date ?? receipt.createdAt,
+          category: item.category || "Other",
+          amount: item.price,
+        });
+      });
+    });
+
+    return result;
+  }, [filteredReceipts]);
+
+  // ==========================================
+  // Category summaries
+  // ==========================================
+
+  const categorySummaries = useMemo<CategorySummary[]>(() => {
+    const categoryMap: Record<
+      string,
+      {
+        amount: number;
+        count: number;
+      }
+    > = {};
+
+    expenses.forEach((expense) => {
+      if (!categoryMap[expense.category]) {
+        categoryMap[expense.category] = {
+          amount: 0,
+          count: 0,
+        };
+      }
+
+      categoryMap[expense.category].amount += expense.amount;
+      categoryMap[expense.category].count += 1;
+    });
+
+    const categoryTotal = Object.values(categoryMap).reduce(
+      (sum, category) => sum + category.amount,
+      0
+    );
+
+    return Object.entries(categoryMap)
+      .map(([name, data]) => ({
+        name,
+        amount: data.amount,
+        count: data.count,
+        percentage:
+          categoryTotal > 0
+            ? Math.round((data.amount / categoryTotal) * 100)
+            : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses]);
+
+  // ==========================================
+  // Number of unique categories
+  // ==========================================
+
+  const categoryCount = categorySummaries.length;
+
+  // ==========================================
+  // Recent expenses
+  // ==========================================
+
+  const recentExpenses = useMemo(() => {
+    return [...expenses].slice(0, 5);
+  }, [expenses]);
+
+  // ==========================================
+  // Loading state
+  // ==========================================
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563EB" />
+
+        <Text style={styles.loadingText}>
+          Loading summary...
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+    <View style={styles.container}>
+      {/* Header */}
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Summary</Text>
-            <Text style={styles.subtitle}>
-              Your expense overview
+      <View style={styles.header}>
+        <Text style={styles.title}>Summary</Text>
+
+        <Text style={styles.subtitle}>
+          Your expense overview
+        </Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Financial Year */}
+
+        <Text style={styles.sectionLabel}>
+          Financial Year
+        </Text>
+
+        <Pressable
+          style={styles.yearSelector}
+          onPress={() =>
+            setYearMenuVisible(!yearMenuVisible)
+          }
+        >
+          <View style={styles.yearSelectorLeft}>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color="#2563EB"
+            />
+
+            <Text style={styles.yearSelectorText}>
+              {selectedYear}
             </Text>
           </View>
 
-          <View style={styles.headerIcon}>
-            <Ionicons
-              name="bar-chart-outline"
-              size={20}
-              color="#2563EB"
-            />
-          </View>
-        </View>
+          <Ionicons
+            name={
+              yearMenuVisible
+                ? "chevron-up"
+                : "chevron-down"
+            }
+            size={20}
+            color="#64748B"
+          />
+        </Pressable>
 
-        {/* Financial Year */}
-        <Text style={styles.sectionLabel}>
-          Financial year
-        </Text>
-
-        <View style={styles.yearRow}>
-          {(
-            ['2024-2025', '2025-2026', '2026-2027'] as FinancialYear[]
-          ).map((year) => (
-            <Pressable
-              key={year}
-              style={[
-                styles.yearButton,
-                selectedYear === year &&
-                  styles.yearButtonSelected,
-              ]}
-              onPress={() => setSelectedYear(year)}
-            >
-              <Text
+        {yearMenuVisible && (
+          <View style={styles.yearMenu}>
+            {financialYears.map((year) => (
+              <Pressable
+                key={year}
                 style={[
-                  styles.yearText,
+                  styles.yearOption,
                   selectedYear === year &&
-                    styles.yearTextSelected,
+                    styles.selectedYearOption,
                 ]}
+                onPress={() => {
+                  setSelectedYear(year);
+                  setYearMenuVisible(false);
+                }}
               >
-                {year}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <Text
+                  style={[
+                    styles.yearOptionText,
+                    selectedYear === year &&
+                      styles.selectedYearText,
+                  ]}
+                >
+                  {year}
+                </Text>
+
+                {selectedYear === year && (
+                  <Ionicons
+                    name="checkmark"
+                    size={20}
+                    color="#2563EB"
+                  />
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* Total Expenses */}
+
         <View style={styles.totalCard}>
-          <View style={styles.cardIcon}>
+          <View style={styles.totalIcon}>
             <Ionicons
-              name="briefcase-outline"
-              size={20}
+              name="wallet-outline"
+              size={24}
               color="#2563EB"
             />
           </View>
 
-          <Text style={styles.smallLabel}>
-            Total expenses
+          <Text style={styles.totalLabel}>
+            Total Expenses
           </Text>
 
           <Text style={styles.totalAmount}>
-            ${data.total.toFixed(2)}
+            ${totalExpenses.toFixed(2)}
           </Text>
 
-          <Text style={styles.financialYearText}>
-            {selectedYear}
+          <Text style={styles.totalDescription}>
+            Total spending for {selectedYear}
           </Text>
         </View>
 
         {/* Statistics */}
-        <View style={styles.statsRow}>
 
-          {/* Receipts */}
+        <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <View style={styles.cardIcon}>
+            <View style={styles.statIcon}>
               <Ionicons
                 name="receipt-outline"
-                size={19}
+                size={21}
                 color="#2563EB"
               />
             </View>
 
             <Text style={styles.statNumber}>
-              {data.receipts}
+              {receiptCount}
             </Text>
 
             <Text style={styles.statLabel}>
@@ -222,479 +391,552 @@ export default function SummaryScreen() {
             </Text>
           </View>
 
-          {/* Categories */}
           <View style={styles.statCard}>
-            <View style={styles.cardIcon}>
+            <View style={styles.statIcon}>
               <Ionicons
-                name="pricetag-outline"
-                size={19}
+                name="pricetags-outline"
+                size={21}
                 color="#2563EB"
               />
             </View>
 
             <Text style={styles.statNumber}>
-              {data.categories}
+              {categoryCount}
             </Text>
 
             <Text style={styles.statLabel}>
               Categories
             </Text>
           </View>
-
         </View>
 
-        {/* Spending by Category */}
+        {/* Spending By Category */}
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
-            Spending by category
-          </Text>
-
-          <Text style={styles.yearSmall}>
-            {selectedYear}
+            Spending by Category
           </Text>
         </View>
 
-        {data.spending.length > 0 ? (
-          <View style={styles.categoryCard}>
-            {data.spending.map((item, index) => (
-              <View
-                key={item.category}
-                style={[
-                  styles.categoryRow,
-                  index === data.spending.length - 1 &&
-                    styles.lastRow,
-                ]}
-              >
-                <View style={styles.categoryLeft}>
+        {categorySummaries.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons
+              name="pie-chart-outline"
+              size={40}
+              color="#94A3B8"
+            />
 
-                  <View style={styles.categoryIcon}>
-                    <Ionicons
-                      name="pricetag-outline"
-                      size={17}
-                      color="#2563EB"
-                    />
-                  </View>
+            <Text style={styles.emptyTitle}>
+              No expenses yet
+            </Text>
 
-                  <View>
-                    <Text style={styles.categoryName}>
-                      {item.category}
-                    </Text>
-
-                    <Text style={styles.itemCount}>
-                      {item.items}{' '}
-                      {item.items === 1 ? 'item' : 'items'}
-                    </Text>
-                  </View>
-
-                </View>
-
-                <View style={styles.categoryRight}>
-                  <Text style={styles.categoryAmount}>
-                    ${item.amount.toFixed(2)}
-                  </Text>
-
-                  <Text style={styles.percentage}>
-                    {item.percentage}%
-                  </Text>
-                </View>
-              </View>
-            ))}
+            <Text style={styles.emptyText}>
+              Save a receipt to see your spending
+              breakdown.
+            </Text>
           </View>
         ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>
-              No expenses in this financial year.
-            </Text>
+          <View style={styles.categoryCard}>
+            {categorySummaries.map(
+              (category, index) => (
+                <View
+                  key={category.name}
+                  style={[
+                    styles.categoryRow,
+                    index !==
+                      categorySummaries.length - 1 &&
+                      styles.categoryRowBorder,
+                  ]}
+                >
+                  <View style={styles.categoryInfo}>
+                    <View style={styles.categoryIcon}>
+                      <Ionicons
+                        name="pricetag-outline"
+                        size={18}
+                        color="#2563EB"
+                      />
+                    </View>
+
+                    <View style={styles.categoryText}>
+                      <Text
+                        style={styles.categoryName}
+                      >
+                        {category.name}
+                      </Text>
+
+                      <Text
+                        style={styles.categoryCount}
+                      >
+                        {category.count}{" "}
+                        {category.count === 1
+                          ? "item"
+                          : "items"}{" "}
+                        • {category.percentage}%
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.categoryAmount}>
+                    ${category.amount.toFixed(2)}
+                  </Text>
+                </View>
+              )
+            )}
           </View>
         )}
 
         {/* Recent Expenses */}
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
-            Recent expenses
+            Recent Expenses
           </Text>
-
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>
-              {data.expenses.length}
-            </Text>
-          </View>
         </View>
 
-        {data.expenses.length > 0 ? (
-          <View style={styles.expensesContainer}>
-            {data.expenses.map((expense) => (
-              <Pressable
-                key={`${expense.name}-${expense.date}`}
-                style={styles.expenseCard}
-              >
-                <View style={styles.expenseIcon}>
-                  <Text style={styles.expenseIconText}>
-                    {expense.icon}
-                  </Text>
-                </View>
+        {recentExpenses.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons
+              name="receipt-outline"
+              size={40}
+              color="#94A3B8"
+            />
 
-                <View style={styles.expenseInfo}>
-                  <Text style={styles.expenseName}>
-                    {expense.name}
+            <Text style={styles.emptyTitle}>
+              No recent expenses
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Your saved receipt items will appear
+              here.
+            </Text>
+          </View>
+        ) : (
+          recentExpenses.map((expense) => (
+            <View
+              key={expense.id}
+              style={styles.expenseCard}
+            >
+              <View style={styles.expenseIcon}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={21}
+                  color="#2563EB"
+                />
+              </View>
+
+              <View style={styles.expenseInfo}>
+                <Text
+                  style={styles.expenseName}
+                  numberOfLines={1}
+                >
+                  {expense.name}
+                </Text>
+
+                <Text style={styles.expenseMerchant}>
+                  {expense.merchant}
+                </Text>
+
+                <View style={styles.expenseMeta}>
+                  <Text style={styles.expenseDate}>
+                    {formatDate(expense.date)}
                   </Text>
 
-                  <Text style={styles.expenseDetails}>
-                    {expense.merchant} • {expense.date}
-                  </Text>
-
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>
+                  <View style={styles.categoryBadge}>
+                    <Text
+                      style={styles.categoryBadgeText}
+                    >
                       {expense.category}
                     </Text>
                   </View>
                 </View>
+              </View>
 
-                <Text style={styles.expenseAmount}>
-                  ${expense.amount.toFixed(2)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyRecent}>
-            <Text style={styles.emptyRecentText}>
-              0
-            </Text>
-          </View>
+              <Text style={styles.expenseAmount}>
+                ${expense.amount.toFixed(2)}
+              </Text>
+            </View>
+          ))
         )}
 
-        {/* Bottom spacing */}
-        <View style={{ height: 30 }} />
+        {/* Refresh */}
 
+        <Pressable
+          style={styles.refreshButton}
+          onPress={loadReceipts}
+        >
+          <Ionicons
+            name="refresh-outline"
+            size={19}
+            color="#2563EB"
+          />
+
+          <Text style={styles.refreshText}>
+            Refresh Summary
+          </Text>
+        </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#F8FAFC",
   },
 
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 30,
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: 12,
+    color: "#64748B",
+    fontSize: 14,
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 22,
+    paddingTop: 55,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
   },
 
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#172033',
+    fontWeight: "800",
+    color: "#172033",
   },
 
   subtitle: {
-    fontSize: 13,
-    color: '#7A8599',
-    marginTop: 3,
+    marginTop: 4,
+    fontSize: 14,
+    color: "#64748B",
   },
 
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 50,
   },
 
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#556078',
-    marginBottom: 9,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+    marginBottom: 8,
   },
 
-  yearRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 18,
+  yearSelector: {
+    height: 52,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
-  yearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#F3F6FB',
+  yearSelectorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 
-  yearButtonSelected: {
-    backgroundColor: '#2563EB',
+  yearSelectorText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#172033",
   },
 
-  yearText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6E7890',
+  yearMenu: {
+    marginTop: 6,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
   },
 
-  yearTextSelected: {
-    color: '#FFFFFF',
+  yearOption: {
+    minHeight: 48,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  selectedYearOption: {
+    backgroundColor: "#EFF6FF",
+  },
+
+  yearOptionText: {
+    fontSize: 14,
+    color: "#475569",
+  },
+
+  selectedYearText: {
+    color: "#2563EB",
+    fontWeight: "700",
   },
 
   totalCard: {
-    backgroundColor: '#EEF4FF',
+    marginTop: 18,
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
 
-  cardIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+  totalIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  smallLabel: {
-    fontSize: 11,
-    color: '#71809A',
-    marginBottom: 3,
+  totalLabel: {
+    marginTop: 15,
+    fontSize: 14,
+    color: "#64748B",
   },
 
   totalAmount: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#172033',
+    marginTop: 3,
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#172033",
   },
 
-  financialYearText: {
-    fontSize: 10,
-    color: '#71809A',
-    marginTop: 3,
+  totalDescription: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#94A3B8",
   },
 
   statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 22,
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
   },
 
   statCard: {
     flex: 1,
-    minHeight: 105,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  statIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   statNumber: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#172033',
+    marginTop: 12,
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#172033",
   },
 
   statLabel: {
-    fontSize: 10,
-    color: '#7A8599',
     marginTop: 2,
+    fontSize: 12,
+    color: "#64748B",
   },
 
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    marginTop: 26,
+    marginBottom: 12,
   },
 
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#172033',
-  },
-
-  yearSmall: {
-    fontSize: 9,
-    color: '#7A8599',
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#172033",
   },
 
   categoryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 22,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 16,
   },
 
   categoryRow: {
-    minHeight: 68,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  categoryRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F6',
+    borderBottomColor: "#F1F5F9",
   },
 
-  lastRow: {
-    borderBottomWidth: 0,
-  },
-
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  categoryInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   categoryIcon: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 11,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  categoryText: {
+    marginLeft: 11,
   },
 
   categoryName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#172033",
+  },
+
+  categoryCount: {
+    marginTop: 3,
     fontSize: 12,
-    fontWeight: '700',
-    color: '#172033',
-  },
-
-  itemCount: {
-    fontSize: 9,
-    color: '#8A94A8',
-    marginTop: 2,
-  },
-
-  categoryRight: {
-    alignItems: 'flex-end',
+    color: "#94A3B8",
   },
 
   categoryAmount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#172033',
-  },
-
-  percentage: {
-    fontSize: 9,
-    color: '#8A94A8',
-    marginTop: 2,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#172033",
   },
 
   emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 22,
+    borderColor: "#E2E8F0",
+    paddingVertical: 35,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+
+  emptyTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#475569",
   },
 
   emptyText: {
-    fontSize: 11,
-    color: '#8A94A8',
-  },
-
-  countBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  countBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-
-  expensesContainer: {
-    gap: 8,
+    marginTop: 5,
+    fontSize: 13,
+    color: "#94A3B8",
+    textAlign: "center",
   },
 
   expenseCard: {
-    minHeight: 82,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   expenseIcon: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: 12,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  expenseIconText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#2563EB',
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   expenseInfo: {
     flex: 1,
+    marginLeft: 12,
+    paddingRight: 8,
   },
 
   expenseName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#172033",
+  },
+
+  expenseMerchant: {
+    marginTop: 3,
     fontSize: 12,
-    fontWeight: '800',
-    color: '#172033',
+    color: "#64748B",
   },
 
-  expenseDetails: {
-    fontSize: 9,
-    color: '#8A94A8',
-    marginTop: 2,
+  expenseMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 7,
   },
 
-  tag: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF4FF',
+  expenseDate: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+
+  categoryBadge: {
+    backgroundColor: "#F1F5F9",
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
-    marginTop: 5,
   },
 
-  tagText: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: '#2563EB',
+  categoryBadgeText: {
+    fontSize: 10,
+    color: "#475569",
+    fontWeight: "600",
   },
 
   expenseAmount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#172033',
-    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#172033",
   },
 
-  emptyRecent: {
-    alignItems: 'flex-end',
-    paddingRight: 5,
+  refreshButton: {
+    marginTop: 18,
+    height: 48,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
 
-  emptyRecentText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#2563EB',
+  refreshText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
