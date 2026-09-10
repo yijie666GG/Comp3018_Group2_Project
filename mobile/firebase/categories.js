@@ -1,4 +1,4 @@
-import { collection, addDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, getDocs, documentId } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 export async function uniqueCategories(params) {
@@ -13,11 +13,16 @@ export async function uniqueCategories(params) {
         ));
 
         const categories = userCategories.docs.map((document) => ({
-            name: document.data().name,
+            categoryId: document.id,
+            categoryName: document.data().name,
         }));
+
+        return categories;
+
     }
     catch(error){
         console.log("There has been an error trying to retrieve categories: ", error);
+        return [];
     }
 }
 

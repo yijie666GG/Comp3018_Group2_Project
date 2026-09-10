@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import {
   View,
@@ -14,6 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 
+import {uniqueCategories, addCategory, deleteCategory} from '../firebase/categories';
+
+type category = {
+  categoryId: string;
+  categoryName: string;
+};
 const defaultCategories = [
   'Work',
   'Travel',
@@ -24,8 +30,30 @@ const defaultCategories = [
 ];
 
 export default function ManageCategoriesScreen() {
-  const [categories, setCategories] = useState(defaultCategories);
+  const [categories, setCategories] = useState<category[]>([]);
   const [newCategory, setNewCategory] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+
+  useEffect(()=> {
+    loadcategories();
+  }, []);
+
+  const loadcategories = async () =>{
+    try{
+      setLoading(true);
+
+      const categoriesFromDB = await uniqueCategories();
+
+      setCategories(categoriesFromDB);
+    }
+    catch(error){
+      console.log("error fetching users categories: ", error);
+    }
+    finally{
+      setLoading(false);
+    }
+  };
 
   const addCategory = () => {
     const name = newCategory.trim();
@@ -36,7 +64,7 @@ export default function ManageCategoriesScreen() {
     }
 
     const alreadyExists = categories.some(
-      (category) => category.toLowerCase() === name.toLowerCase()
+      (category) => category.categoryName.toLowerCase() === name.toLowerCase()
     );
 
     if (alreadyExists) {
