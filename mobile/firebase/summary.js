@@ -14,11 +14,22 @@ export async function getUserReceipts() {
             'users',
             user.uid,
             'receipts'
-        ));
+        ),
+        orderBy('date', 'desc'));
 
-        const receiptsSummary = summaryInfo.docs.map((document) => ({
-            //add necessary data needed for your summary page (i.e like receipts that you need for the summary or total etc.)
-        }))
+        const receiptsSummary = summaryInfo.docs.map((document) => {
+            const data = document.data();
+
+            return{
+                id: document.id,
+                date: data.date,
+                total: Number(data.total) || 0,
+                items: data.items || [],
+            };
+        });
+
+        return receiptsSummary;
+
     } 
     catch (error) {
         console.log("Error fetching receipts: ", error);   

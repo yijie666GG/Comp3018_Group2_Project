@@ -10,6 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 
+import { collection, getDocs} from 'firebase/firestore';
+import { auth, db} from '../../firebase/firebase';
+
 function getCurrentFinancialYear() {
   const today = new Date();
   const year = today.getFullYear();
