@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   View,
@@ -12,7 +12,12 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+
+import {
+  getCurrentFinancialYear,
+  getFinancialYearSettings,
+} from '../../firebase/financial-year';
 
 const categories = [
   'All',
@@ -24,17 +29,44 @@ const categories = [
   'Technology',
 ];
 
-const financialYears = [
-  '2026–2027',
-  '2025–2026',
-  '2024–2025',
-];
-
 export default function ItemsScreen() {
+  const currentFinancialYear = getCurrentFinancialYear();
+
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedYear, setSelectedYear] = useState('2026–2027');
+
+  const [financialYears, setFinancialYears] = useState([
+    currentFinancialYear,
+  ]);
+
+  const [selectedYear, setSelectedYear] = useState(
+    currentFinancialYear
+  );
+
   const [search, setSearch] = useState('');
   const [yearModalVisible, setYearModalVisible] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadFinancialYears = async () => {
+        try {
+          const settings = await getFinancialYearSettings();
+
+          setFinancialYears(settings.financialYears);
+
+          // Items starts on the user's active financial year.
+          // Changing the year inside Items does NOT change Firestore.
+          setSelectedYear(settings.activeFinancialYear);
+        } catch (error) {
+          console.log(
+            'Load financial years in Items error:',
+            error
+          );
+        }
+      };
+
+      loadFinancialYears();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -144,7 +176,7 @@ export default function ItemsScreen() {
           </Text>
 
           <Text style={styles.emptyText}>
-            Items from scanned or uploaded receipts will appear here.
+            Items from scanned or uploaded receipts for {selectedYear} will appear here.
           </Text>
 
           {selectedCategory !== 'All' && (
@@ -172,6 +204,8 @@ export default function ItemsScreen() {
                 key={year}
                 style={styles.yearOption}
                 onPress={() => {
+                  // Temporary selection for Items only.
+                  // This does NOT change the active financial year.
                   setSelectedYear(year);
                   setYearModalVisible(false);
                 }}
