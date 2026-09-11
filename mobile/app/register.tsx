@@ -11,12 +11,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { register } from '../firebase/register';
+import { googleLogin } from '../firebase/google-login';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleGoogleSignup = async () => {
+    try {
+      await googleLogin();
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.log('Google signup error:', error);
+
+      Alert.alert(
+        'Google sign-up failed',
+        'Unable to continue with Google. Please try again.'
+      );
+    }
+  };
 
   const handleCreateAccount = async () => {
     if (!name.trim() || !email.trim() || !password || !confirmPassword) {
@@ -42,8 +57,16 @@ export default function RegisterScreen() {
           },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.log('Register error:', error);
+
+      if (error.code === 'auth/email-already-in-use') {
+        Alert.alert(
+          'Account already exists',
+          'An account with this email already exists. Please log in or continue with Google.'
+        );
+        return;
+      }
 
       Alert.alert(
         'Registration failed',
@@ -71,7 +94,10 @@ export default function RegisterScreen() {
           Start managing your expenses and financial records.
         </Text>
 
-        <Pressable style={styles.googleButton}>
+        <Pressable
+          style={styles.googleButton}
+          onPress={handleGoogleSignup}
+        >
           <Text style={styles.googleText}>G</Text>
           <Text style={styles.googleButtonText}>Continue with Google</Text>
         </Pressable>
