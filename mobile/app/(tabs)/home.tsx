@@ -20,7 +20,12 @@ import {
   getFinancialYearSettings,
 } from '../../firebase/financial-year';
 
+import { useTheme } from '../../theme/ThemeContext';
+
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const [financialYear, setFinancialYear] = useState(
     getCurrentFinancialYear()
   );
@@ -66,7 +71,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
@@ -82,12 +86,11 @@ export default function HomeScreen() {
             <Ionicons
               name="person-outline"
               size={22}
-              color="#2563EB"
+              color={colors.primary}
             />
           </View>
         </View>
 
-        {/* Financial year */}
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>
             Current financial year
@@ -120,7 +123,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Quick actions */}
         <Text style={styles.sectionTitle}>
           Quick actions
         </Text>
@@ -129,12 +131,13 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/scan')}
+            activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
               <Ionicons
                 name="add-outline"
                 size={24}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -150,12 +153,13 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/manage-categories')}
+            activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
               <Ionicons
                 name="pricetags-outline"
                 size={24}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -171,12 +175,13 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/items')}
+            activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
               <Ionicons
                 name="list-outline"
                 size={24}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -192,12 +197,13 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/summary')}
+            activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
               <Ionicons
                 name="pie-chart-outline"
                 size={24}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -211,7 +217,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Recent items */}
         <Text style={styles.sectionTitle}>
           Recent items
         </Text>
@@ -221,7 +226,7 @@ export default function HomeScreen() {
             <Ionicons
               name="receipt-outline"
               size={26}
-              color="#2563EB"
+              color={colors.primary}
             />
           </View>
 
@@ -238,159 +243,162 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 110,
-  },
+    content: {
+      paddingHorizontal: 22,
+      paddingTop: 12,
+      paddingBottom: 110,
+    },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 22,
-  },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 22,
+    },
 
-  greeting: {
-    fontSize: 13,
-    color: '#7A8599',
-  },
+    greeting: {
+      fontSize: 13,
+      color: colors.secondaryText,
+    },
 
-  welcome: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#172033',
-    marginTop: 2,
-  },
+    welcome: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 2,
+    },
 
-  profileCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    profileCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  heroCard: {
-    backgroundColor: '#2563EB',
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 28,
-  },
+    heroCard: {
+      backgroundColor: colors.primary,
+      borderRadius: 22,
+      padding: 20,
+      marginBottom: 28,
+    },
 
-  heroLabel: {
-    color: '#DCE8FF',
-    fontSize: 12,
-  },
+    heroLabel: {
+      color: '#DCE8FF',
+      fontSize: 12,
+    },
 
-  heroYear: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 4,
-    marginBottom: 22,
-  },
+    heroYear: {
+      color: '#FFFFFF',
+      fontSize: 24,
+      fontWeight: '800',
+      marginTop: 4,
+      marginBottom: 22,
+    },
 
-  heroStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+    heroStats: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
 
-  heroStatLabel: {
-    color: '#DCE8FF',
-    fontSize: 11,
-    marginBottom: 4,
-  },
+    heroStatLabel: {
+      color: '#DCE8FF',
+      fontSize: 11,
+      marginBottom: 4,
+    },
 
-  heroStatValue: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
+    heroStatValue: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '800',
+    },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 14,
-  },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 14,
+    },
 
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 28,
-  },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginBottom: 28,
+    },
 
-  actionCard: {
-    width: '48%',
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-    minHeight: 132,
-  },
+    actionCard: {
+      width: '48%',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 14,
+      marginBottom: 12,
+      minHeight: 132,
+      backgroundColor: colors.card,
+    },
 
-  iconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
+    iconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
 
-  actionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    actionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  actionSubtitle: {
-    marginTop: 4,
-    fontSize: 11,
-    color: '#7A8599',
-  },
+    actionSubtitle: {
+      marginTop: 4,
+      fontSize: 11,
+      color: colors.secondaryText,
+    },
 
-  emptyCard: {
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
+    emptyCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
 
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#EEF4FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
+    emptyIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.primarySoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
 
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    emptyTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  emptyText: {
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: 'center',
-    color: '#7A8599',
-    marginTop: 4,
-  },
-});
+    emptyText: {
+      fontSize: 11,
+      lineHeight: 16,
+      textAlign: 'center',
+      color: colors.secondaryText,
+      marginTop: 4,
+    },
+  });

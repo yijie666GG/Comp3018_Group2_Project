@@ -14,8 +14,20 @@ import { signOut } from 'firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { auth } from '../../firebase/firebase';
+import { useTheme } from '../../theme/ThemeContext';
 
 export default function AccountScreen() {
+  const { colors, mode } = useTheme();
+
+  const styles = createStyles(colors);
+
+  const appearanceLabel =
+    mode === 'light'
+      ? 'Light'
+      : mode === 'dark'
+        ? 'Dark'
+        : 'System';
+
   const handleLogout = () => {
     Alert.alert(
       'Log out',
@@ -30,7 +42,6 @@ export default function AccountScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-
               await GoogleSignin.signOut();
               await signOut(auth);
 
@@ -64,12 +75,14 @@ export default function AccountScreen() {
             <Ionicons
               name="person-outline"
               size={28}
-              color="#2563EB"
+              color={colors.primary}
             />
           </View>
 
           <View>
-            <Text style={styles.profileTitle}>Your account</Text>
+            <Text style={styles.profileTitle}>
+              Your account
+            </Text>
 
             <Text style={styles.profileSubtitle}>
               Manage your personal settings
@@ -77,8 +90,11 @@ export default function AccountScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Settings</Text>
+        <Text style={styles.sectionTitle}>
+          Settings
+        </Text>
 
+        {/* Personal Information */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -89,7 +105,7 @@ export default function AccountScreen() {
               <Ionicons
                 name="person-outline"
                 size={21}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -107,10 +123,11 @@ export default function AccountScreen() {
           <Ionicons
             name="chevron-forward"
             size={20}
-            color="#8A94A8"
+            color={colors.mutedText}
           />
         </TouchableOpacity>
 
+        {/* Notifications */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -121,7 +138,7 @@ export default function AccountScreen() {
               <Ionicons
                 name="notifications-outline"
                 size={21}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -139,10 +156,11 @@ export default function AccountScreen() {
           <Ionicons
             name="chevron-forward"
             size={20}
-            color="#8A94A8"
+            color={colors.mutedText}
           />
         </TouchableOpacity>
 
+        {/* Financial Years */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -153,7 +171,7 @@ export default function AccountScreen() {
               <Ionicons
                 name="calendar-outline"
                 size={21}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -171,10 +189,44 @@ export default function AccountScreen() {
           <Ionicons
             name="chevron-forward"
             size={20}
-            color="#8A94A8"
+            color={colors.mutedText}
           />
         </TouchableOpacity>
 
+        {/* Appearance */}
+        <TouchableOpacity
+          style={styles.menuItem}
+          activeOpacity={0.7}
+          onPress={() => router.push('/appearance')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={styles.iconBox}>
+              <Ionicons
+                name="moon-outline"
+                size={21}
+                color={colors.primary}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.menuTitle}>
+                Appearance
+              </Text>
+
+              <Text style={styles.menuSubtitle}>
+                {appearanceLabel} mode
+              </Text>
+            </View>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.mutedText}
+          />
+        </TouchableOpacity>
+
+        {/* Logout */}
         <TouchableOpacity
           style={styles.logoutButton}
           activeOpacity={0.7}
@@ -183,125 +235,129 @@ export default function AccountScreen() {
           <Ionicons
             name="log-out-outline"
             size={20}
-            color="#DC2626"
+            color={colors.danger}
           />
 
-          <Text style={styles.logoutText}>Log out</Text>
+          <Text style={styles.logoutText}>
+            Log out
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 16,
-    paddingBottom: 110,
-  },
+    content: {
+      paddingHorizontal: 22,
+      paddingTop: 16,
+      paddingBottom: 110,
+    },
 
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 24,
-  },
+    title: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 24,
+    },
 
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 30,
-  },
+    profileCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 30,
+      backgroundColor: colors.card,
+    },
 
-  avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 17,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
+    avatar: {
+      width: 54,
+      height: 54,
+      borderRadius: 17,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    },
 
-  profileTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    profileTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  profileSubtitle: {
-    fontSize: 12,
-    color: '#7A8599',
-    marginTop: 4,
-  },
+    profileSubtitle: {
+      fontSize: 12,
+      color: colors.secondaryText,
+      marginTop: 4,
+    },
 
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 10,
-  },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 10,
+    },
 
-  menuItem: {
-    minHeight: 74,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    menuItem: {
+      minHeight: 74,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
 
-  menuLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
+    menuLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
 
-  iconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    iconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  menuTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#172033',
-  },
+    menuTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
 
-  menuSubtitle: {
-    fontSize: 11,
-    color: '#7A8599',
-    marginTop: 3,
-  },
+    menuSubtitle: {
+      fontSize: 11,
+      color: colors.secondaryText,
+      marginTop: 3,
+    },
 
-  logoutButton: {
-    height: 52,
-    marginTop: 34,
-    borderRadius: 15,
-    backgroundColor: '#FEF2F2',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
+    logoutButton: {
+      height: 52,
+      marginTop: 34,
+      borderRadius: 15,
+      backgroundColor: colors.dangerSoft,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+    },
 
-  logoutText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-});
+    logoutText: {
+      color: colors.danger,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+  });
