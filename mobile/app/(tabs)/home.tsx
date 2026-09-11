@@ -1,3 +1,5 @@
+import { useCallback, useState } from 'react';
+
 import {
   View,
   Text,
@@ -8,27 +10,37 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
-import { collection, getDocs} from 'firebase/firestore';
-import { auth, db} from '../../firebase/firebase';
-
-function getCurrentFinancialYear() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  return month >= 6
-    ? `${year}–${year + 1}`
-    : `${year - 1}–${year}`;
-}
+import {
+  getCurrentFinancialYear,
+  getFinancialYearSettings,
+} from '../../firebase/financial-year';
 
 export default function HomeScreen() {
-  const financialYear = getCurrentFinancialYear();
+  const [financialYear, setFinancialYear] = useState(
+    getCurrentFinancialYear()
+  );
 
   // These will come from the database later.
   const totalExpenses = 0;
   const itemsSaved = 0;
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadActiveFinancialYear = async () => {
+        try {
+          const settings = await getFinancialYearSettings();
+
+          setFinancialYear(settings.activeFinancialYear);
+        } catch (error) {
+          console.log('Load active financial year error:', error);
+        }
+      };
+
+      loadActiveFinancialYear();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
