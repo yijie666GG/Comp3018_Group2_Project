@@ -42,6 +42,10 @@ export default function ItemsScreen() {
     currentFinancialYear
   );
 
+  const [activeYear, setActiveYear] = useState(
+    currentFinancialYear
+  );
+
   const [search, setSearch] = useState('');
   const [yearModalVisible, setYearModalVisible] = useState(false);
 
@@ -52,6 +56,7 @@ export default function ItemsScreen() {
           const settings = await getFinancialYearSettings();
 
           setFinancialYears(settings.financialYears);
+          setActiveYear(settings.activeFinancialYear);
 
           // Items starts on the user's active financial year.
           // Changing the year inside Items does NOT change Firestore.
@@ -214,13 +219,21 @@ export default function ItemsScreen() {
                   {year}
                 </Text>
 
-                {selectedYear === year && (
-                  <Ionicons
-                    name="checkmark"
-                    size={20}
-                    color="#2563EB"
-                  />
-                )}
+                <View style={styles.yearOptionRight}>
+                  {activeYear === year && (
+                    <Text style={styles.activeYearText}>
+                      Active
+                    </Text>
+                  )}
+
+                  {selectedYear === year && (
+                    <Ionicons
+                      name="checkmark"
+                      size={20}
+                      color="#2563EB"
+                    />
+                  )}
+                </View>
               </TouchableOpacity>
             ))}
 
@@ -417,6 +430,18 @@ const styles = StyleSheet.create({
   yearOptionText: {
     fontSize: 15,
     color: '#172033',
+  },
+
+  yearOptionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  activeYearText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
   },
 
   cancelButton: {
