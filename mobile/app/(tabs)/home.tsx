@@ -12,6 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase/firebase';
+
 import {
   getCurrentFinancialYear,
   getFinancialYearSettings,
@@ -22,23 +25,38 @@ export default function HomeScreen() {
     getCurrentFinancialYear()
   );
 
+  const [name, setName] = useState('');
+
   // These will come from the database later.
   const totalExpenses = 0;
   const itemsSaved = 0;
 
   useFocusEffect(
     useCallback(() => {
-      const loadActiveFinancialYear = async () => {
+      const loadHomeData = async () => {
         try {
-          const settings = await getFinancialYearSettings();
+          const user = auth.currentUser;
 
+          if (!user) {
+            return;
+          }
+
+          const settings = await getFinancialYearSettings();
           setFinancialYear(settings.activeFinancialYear);
+
+          const userRef = doc(db, 'users', user.uid);
+          const snapshot = await getDoc(userRef);
+
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            setName(data.name || '');
+          }
         } catch (error) {
-          console.log('Load active financial year error:', error);
+          console.log('Load home data error:', error);
         }
       };
 
-      loadActiveFinancialYear();
+      loadHomeData();
     }, [])
   );
 
@@ -51,8 +69,13 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning</Text>
-            <Text style={styles.welcome}>Welcome</Text>
+            <Text style={styles.greeting}>
+              Welcome back
+            </Text>
+
+            <Text style={styles.welcome}>
+              {name || 'User'}
+            </Text>
           </View>
 
           <View style={styles.profileCircle}>
