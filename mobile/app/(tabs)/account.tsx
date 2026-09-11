@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { signOut } from 'firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { auth } from '../../firebase/firebase';
 
@@ -29,6 +30,8 @@ export default function AccountScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+
+              await GoogleSignin.signOut();
               await signOut(auth);
 
               console.log('Logout successful');
