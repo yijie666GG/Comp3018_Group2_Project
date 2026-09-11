@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   View,
@@ -14,15 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 
-function getCurrentFinancialYear() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  return month >= 6
-    ? `${year}–${year + 1}`
-    : `${year - 1}–${year}`;
-}
+import {
+  getCurrentFinancialYear,
+  getFinancialYearSettings,
+  addFinancialYear as saveFinancialYear,
+  setActiveFinancialYear,
+} from '../firebase/financial-year';
 
 export default function FinancialYearsScreen() {
   const currentFinancialYear = getCurrentFinancialYear();
@@ -34,7 +31,22 @@ export default function FinancialYearsScreen() {
   const [activeYear, setActiveYear] = useState(currentFinancialYear);
   const [startYear, setStartYear] = useState('');
 
-  const addFinancialYear = () => {
+  useEffect(() => {
+    const loadFinancialYears = async () => {
+      try {
+        const settings = await getFinancialYearSettings();
+
+        setFinancialYears(settings.financialYears);
+        setActiveYear(settings.activeFinancialYear);
+      } catch (error) {
+        console.log('Load financial years error:', error);
+      }
+    };
+
+    loadFinancialYears();
+  }, []);
+
+  const addFinancialYear = async () => {
     const year = Number(startYear.trim());
 
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -55,18 +67,43 @@ export default function FinancialYearsScreen() {
       return;
     }
 
-    setFinancialYears((current) => [
-      newFinancialYear,
-      ...current,
-    ]);
+    try {
+      await saveFinancialYear(newFinancialYear);
 
-    setStartYear('');
+      setFinancialYears((current) => [
+        newFinancialYear,
+        ...current,
+      ]);
+
+      setStartYear('');
+    } catch (error) {
+      console.log('Add financial year error:', error);
+
+      Alert.alert(
+        'Unable to add year',
+        'Please try again.'
+      );
+    }
+  };
+
+  const handleSetActiveYear = async (year: string) => {
+    try {
+      await setActiveFinancialYear(year);
+
+      setActiveYear(year);
+    } catch (error) {
+      console.log('Set active year error:', error);
+
+      Alert.alert(
+        'Unable to change year',
+        'Please try again.'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.content}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -89,7 +126,6 @@ export default function FinancialYearsScreen() {
           Create financial years and choose which year you want to manage.
         </Text>
 
-        {/* Add Financial Year */}
         <View style={styles.createCard}>
           <Text style={styles.label}>
             Create financial year
@@ -142,7 +178,7 @@ export default function FinancialYearsScreen() {
                   styles.yearCard,
                   selected && styles.yearCardActive,
                 ]}
-                onPress={() => setActiveYear(year)}
+                onPress={() => handleSetActiveYear(year)}
                 activeOpacity={0.7}
               >
                 <View style={styles.yearLeft}>
@@ -196,7 +232,7 @@ export default function FinancialYearsScreen() {
           />
 
           <Text style={styles.infoText}>
-            Financial years will be saved to your account when the database is connected.
+            Financial years are saved to your account.
           </Text>
         </View>
       </View>
