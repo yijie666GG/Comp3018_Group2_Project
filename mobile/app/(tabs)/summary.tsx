@@ -11,6 +11,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "expo-router";
 import { getReceipts, SavedReceipt } from "../../services/receiptStorage";
 
+import { useTheme } from "../../theme/ThemeContext";
+
 type FinancialYear = "2024-2025" | "2025-2026" | "2026-2027";
 
 type Expense = {
@@ -42,26 +44,16 @@ const getFinancialYear = (dateString: string | null): FinancialYear | null => {
 
   let date: Date | null = null;
 
-  // Handles YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     const [year, month, day] = dateString.split("-").map(Number);
     date = new Date(year, month - 1, day);
-  }
-
-  // Handles DD/MM/YYYY
-  else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateString)) {
+  } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateString)) {
     const [day, month, year] = dateString.split("/").map(Number);
     date = new Date(year, month - 1, day);
-  }
-
-  // Handles DD-MM-YYYY
-  else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateString)) {
+  } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateString)) {
     const [day, month, year] = dateString.split("-").map(Number);
     date = new Date(year, month - 1, day);
-  }
-
-  // Handles other dates recognised by JavaScript
-  else {
+  } else {
     const parsed = new Date(dateString);
 
     if (!Number.isNaN(parsed.getTime())) {
@@ -76,8 +68,6 @@ const getFinancialYear = (dateString: string | null): FinancialYear | null => {
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
 
-  // Australian financial year:
-  // 1 July -> 30 June
   if (month >= 7) {
     return `${year}-${year + 1}` as FinancialYear;
   }
@@ -94,16 +84,15 @@ const formatDate = (dateString: string | null): string => {
 };
 
 export default function Summary() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const [selectedYear, setSelectedYear] =
     useState<FinancialYear>("2025-2026");
 
   const [receipts, setReceipts] = useState<SavedReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [yearMenuVisible, setYearMenuVisible] = useState(false);
-
-  // ==========================================
-  // Load receipts whenever Summary is opened
-  // ==========================================
 
   const loadReceipts = async () => {
     try {
@@ -126,19 +115,11 @@ export default function Summary() {
     }, [])
   );
 
-  // ==========================================
-  // Filter receipts by financial year
-  // ==========================================
-
   const filteredReceipts = useMemo(() => {
     return receipts.filter((receipt) => {
       return getFinancialYear(receipt.date) === selectedYear;
     });
   }, [receipts, selectedYear]);
-
-  // ==========================================
-  // Total expenses
-  // ==========================================
 
   const totalExpenses = useMemo(() => {
     return filteredReceipts.reduce((total, receipt) => {
@@ -146,7 +127,6 @@ export default function Summary() {
         return total + receipt.total;
       }
 
-      // Fallback to item prices if receipt total is unavailable
       const itemTotal = receipt.items.reduce(
         (sum, item) => sum + item.price,
         0
@@ -156,15 +136,7 @@ export default function Summary() {
     }, 0);
   }, [filteredReceipts]);
 
-  // ==========================================
-  // Number of receipts
-  // ==========================================
-
   const receiptCount = filteredReceipts.length;
-
-  // ==========================================
-  // Convert receipt items into expenses
-  // ==========================================
 
   const expenses = useMemo<Expense[]>(() => {
     const result: Expense[] = [];
@@ -184,10 +156,6 @@ export default function Summary() {
 
     return result;
   }, [filteredReceipts]);
-
-  // ==========================================
-  // Category summaries
-  // ==========================================
 
   const categorySummaries = useMemo<CategorySummary[]>(() => {
     const categoryMap: Record<
@@ -228,28 +196,19 @@ export default function Summary() {
       .sort((a, b) => b.amount - a.amount);
   }, [expenses]);
 
-  // ==========================================
-  // Number of unique categories
-  // ==========================================
-
   const categoryCount = categorySummaries.length;
-
-  // ==========================================
-  // Recent expenses
-  // ==========================================
 
   const recentExpenses = useMemo(() => {
     return [...expenses].slice(0, 5);
   }, [expenses]);
 
-  // ==========================================
-  // Loading state
-  // ==========================================
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+        />
 
         <Text style={styles.loadingText}>
           Loading summary...
@@ -260,8 +219,6 @@ export default function Summary() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-
       <View style={styles.header}>
         <Text style={styles.title}>Summary</Text>
 
@@ -274,8 +231,6 @@ export default function Summary() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Financial Year */}
-
         <Text style={styles.sectionLabel}>
           Financial Year
         </Text>
@@ -290,7 +245,7 @@ export default function Summary() {
             <Ionicons
               name="calendar-outline"
               size={20}
-              color="#2563EB"
+              color={colors.primary}
             />
 
             <Text style={styles.yearSelectorText}>
@@ -305,7 +260,7 @@ export default function Summary() {
                 : "chevron-down"
             }
             size={20}
-            color="#64748B"
+            color={colors.secondaryText}
           />
         </Pressable>
 
@@ -317,7 +272,7 @@ export default function Summary() {
                 style={[
                   styles.yearOption,
                   selectedYear === year &&
-                    styles.selectedYearOption,
+                  styles.selectedYearOption,
                 ]}
                 onPress={() => {
                   setSelectedYear(year);
@@ -328,7 +283,7 @@ export default function Summary() {
                   style={[
                     styles.yearOptionText,
                     selectedYear === year &&
-                      styles.selectedYearText,
+                    styles.selectedYearText,
                   ]}
                 >
                   {year}
@@ -338,7 +293,7 @@ export default function Summary() {
                   <Ionicons
                     name="checkmark"
                     size={20}
-                    color="#2563EB"
+                    color={colors.primary}
                   />
                 )}
               </Pressable>
@@ -346,14 +301,12 @@ export default function Summary() {
           </View>
         )}
 
-        {/* Total Expenses */}
-
         <View style={styles.totalCard}>
           <View style={styles.totalIcon}>
             <Ionicons
               name="wallet-outline"
               size={24}
-              color="#2563EB"
+              color={colors.primary}
             />
           </View>
 
@@ -370,15 +323,13 @@ export default function Summary() {
           </Text>
         </View>
 
-        {/* Statistics */}
-
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Ionicons
                 name="receipt-outline"
                 size={21}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -396,7 +347,7 @@ export default function Summary() {
               <Ionicons
                 name="pricetags-outline"
                 size={21}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -410,8 +361,6 @@ export default function Summary() {
           </View>
         </View>
 
-        {/* Spending By Category */}
-
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             Spending by Category
@@ -423,7 +372,7 @@ export default function Summary() {
             <Ionicons
               name="pie-chart-outline"
               size={40}
-              color="#94A3B8"
+              color={colors.mutedText}
             />
 
             <Text style={styles.emptyTitle}>
@@ -431,8 +380,7 @@ export default function Summary() {
             </Text>
 
             <Text style={styles.emptyText}>
-              Save a receipt to see your spending
-              breakdown.
+              Save a receipt to see your spending breakdown.
             </Text>
           </View>
         ) : (
@@ -444,8 +392,8 @@ export default function Summary() {
                   style={[
                     styles.categoryRow,
                     index !==
-                      categorySummaries.length - 1 &&
-                      styles.categoryRowBorder,
+                    categorySummaries.length - 1 &&
+                    styles.categoryRowBorder,
                   ]}
                 >
                   <View style={styles.categoryInfo}>
@@ -453,20 +401,16 @@ export default function Summary() {
                       <Ionicons
                         name="pricetag-outline"
                         size={18}
-                        color="#2563EB"
+                        color={colors.primary}
                       />
                     </View>
 
                     <View style={styles.categoryText}>
-                      <Text
-                        style={styles.categoryName}
-                      >
+                      <Text style={styles.categoryName}>
                         {category.name}
                       </Text>
 
-                      <Text
-                        style={styles.categoryCount}
-                      >
+                      <Text style={styles.categoryCount}>
                         {category.count}{" "}
                         {category.count === 1
                           ? "item"
@@ -485,8 +429,6 @@ export default function Summary() {
           </View>
         )}
 
-        {/* Recent Expenses */}
-
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             Recent Expenses
@@ -498,7 +440,7 @@ export default function Summary() {
             <Ionicons
               name="receipt-outline"
               size={40}
-              color="#94A3B8"
+              color={colors.mutedText}
             />
 
             <Text style={styles.emptyTitle}>
@@ -506,8 +448,7 @@ export default function Summary() {
             </Text>
 
             <Text style={styles.emptyText}>
-              Your saved receipt items will appear
-              here.
+              Your saved receipt items will appear here.
             </Text>
           </View>
         ) : (
@@ -520,7 +461,7 @@ export default function Summary() {
                 <Ionicons
                   name="receipt-outline"
                   size={21}
-                  color="#2563EB"
+                  color={colors.primary}
                 />
               </View>
 
@@ -542,9 +483,7 @@ export default function Summary() {
                   </Text>
 
                   <View style={styles.categoryBadge}>
-                    <Text
-                      style={styles.categoryBadgeText}
-                    >
+                    <Text style={styles.categoryBadgeText}>
                       {expense.category}
                     </Text>
                   </View>
@@ -558,8 +497,6 @@ export default function Summary() {
           ))
         )}
 
-        {/* Refresh */}
-
         <Pressable
           style={styles.refreshButton}
           onPress={loadReceipts}
@@ -567,7 +504,7 @@ export default function Summary() {
           <Ionicons
             name="refresh-outline"
             size={19}
-            color="#2563EB"
+            color={colors.primary}
           />
 
           <Text style={styles.refreshText}>
@@ -579,364 +516,365 @@ export default function Summary() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  loadingText: {
-    marginTop: 12,
-    color: "#64748B",
-    fontSize: 14,
-  },
+    loadingText: {
+      marginTop: 12,
+      color: colors.secondaryText,
+      fontSize: 14,
+    },
 
-  header: {
-    paddingTop: 55,
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
+    header: {
+      paddingTop: 55,
+      paddingHorizontal: 20,
+      paddingBottom: 18,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
 
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    title: {
+      fontSize: 28,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  subtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: "#64748B",
-  },
+    subtitle: {
+      marginTop: 4,
+      fontSize: 14,
+      color: colors.secondaryText,
+    },
 
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 50,
-  },
+    scrollContent: {
+      padding: 20,
+      paddingBottom: 50,
+    },
 
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#475569",
-    marginBottom: 8,
-  },
+    sectionLabel: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.secondaryText,
+      marginBottom: 8,
+    },
 
-  yearSelector: {
-    height: 52,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    yearSelector: {
+      height: 52,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 15,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  yearSelectorLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+    yearSelectorLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
 
-  yearSelectorText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#172033",
-  },
+    yearSelectorText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+    },
 
-  yearMenu: {
-    marginTop: 6,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    overflow: "hidden",
-  },
+    yearMenu: {
+      marginTop: 6,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
 
-  yearOption: {
-    minHeight: 48,
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    yearOption: {
+      minHeight: 48,
+      paddingHorizontal: 15,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  selectedYearOption: {
-    backgroundColor: "#EFF6FF",
-  },
+    selectedYearOption: {
+      backgroundColor: colors.primarySoft,
+    },
 
-  yearOptionText: {
-    fontSize: 14,
-    color: "#475569",
-  },
+    yearOptionText: {
+      fontSize: 14,
+      color: colors.secondaryText,
+    },
 
-  selectedYearText: {
-    color: "#2563EB",
-    fontWeight: "700",
-  },
+    selectedYearText: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
 
-  totalCard: {
-    marginTop: 18,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    totalCard: {
+      marginTop: 18,
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  totalIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    totalIcon: {
+      width: 45,
+      height: 45,
+      borderRadius: 13,
+      backgroundColor: colors.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
 
-  totalLabel: {
-    marginTop: 15,
-    fontSize: 14,
-    color: "#64748B",
-  },
+    totalLabel: {
+      marginTop: 15,
+      fontSize: 14,
+      color: colors.secondaryText,
+    },
 
-  totalAmount: {
-    marginTop: 3,
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    totalAmount: {
+      marginTop: 3,
+      fontSize: 30,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  totalDescription: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+    totalDescription: {
+      marginTop: 4,
+      fontSize: 12,
+      color: colors.mutedText,
+    },
 
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
+    statsRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 12,
+    },
 
-  statCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    statCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  statIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    statIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 11,
+      backgroundColor: colors.primarySoft,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  statNumber: {
-    marginTop: 12,
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    statNumber: {
+      marginTop: 12,
+      fontSize: 24,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  statLabel: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#64748B",
-  },
+    statLabel: {
+      marginTop: 2,
+      fontSize: 12,
+      color: colors.secondaryText,
+    },
 
-  sectionHeader: {
-    marginTop: 26,
-    marginBottom: 12,
-  },
+    sectionHeader: {
+      marginTop: 26,
+      marginBottom: 12,
+    },
 
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    sectionTitle: {
+      fontSize: 19,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  categoryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 16,
-  },
+    categoryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+    },
 
-  categoryRow: {
-    minHeight: 72,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    categoryRow: {
+      minHeight: 72,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  categoryRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
+    categoryRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
 
-  categoryInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    categoryInfo: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+    },
 
-  categoryIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    categoryIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 11,
+      backgroundColor: colors.primarySoft,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  categoryText: {
-    marginLeft: 11,
-  },
+    categoryText: {
+      marginLeft: 11,
+    },
 
-  categoryName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#172033",
-  },
+    categoryName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.text,
+    },
 
-  categoryCount: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+    categoryCount: {
+      marginTop: 3,
+      fontSize: 12,
+      color: colors.mutedText,
+    },
 
-  categoryAmount: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    categoryAmount: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  emptyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingVertical: 35,
-    paddingHorizontal: 20,
-    alignItems: "center",
-  },
+    emptyCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 35,
+      paddingHorizontal: 20,
+      alignItems: "center",
+    },
 
-  emptyTitle: {
-    marginTop: 10,
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#475569",
-  },
+    emptyTitle: {
+      marginTop: 10,
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+    },
 
-  emptyText: {
-    marginTop: 5,
-    fontSize: 13,
-    color: "#94A3B8",
-    textAlign: "center",
-  },
+    emptyText: {
+      marginTop: 5,
+      fontSize: 13,
+      color: colors.mutedText,
+      textAlign: "center",
+    },
 
-  expenseCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 15,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    expenseCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 15,
+      marginBottom: 10,
+      flexDirection: "row",
+      alignItems: "center",
+    },
 
-  expenseIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    expenseIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.primarySoft,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  expenseInfo: {
-    flex: 1,
-    marginLeft: 12,
-    paddingRight: 8,
-  },
+    expenseInfo: {
+      flex: 1,
+      marginLeft: 12,
+      paddingRight: 8,
+    },
 
-  expenseName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#172033",
-  },
+    expenseName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.text,
+    },
 
-  expenseMerchant: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#64748B",
-  },
+    expenseMerchant: {
+      marginTop: 3,
+      fontSize: 12,
+      color: colors.secondaryText,
+    },
 
-  expenseMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    gap: 7,
-  },
+    expenseMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 6,
+      gap: 7,
+    },
 
-  expenseDate: {
-    fontSize: 11,
-    color: "#94A3B8",
-  },
+    expenseDate: {
+      fontSize: 11,
+      color: colors.mutedText,
+    },
 
-  categoryBadge: {
-    backgroundColor: "#F1F5F9",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
+    categoryBadge: {
+      backgroundColor: colors.softBackground,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
 
-  categoryBadgeText: {
-    fontSize: 10,
-    color: "#475569",
-    fontWeight: "600",
-  },
+    categoryBadgeText: {
+      fontSize: 10,
+      color: colors.secondaryText,
+      fontWeight: "600",
+    },
 
-  expenseAmount: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    expenseAmount: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  refreshButton: {
-    marginTop: 18,
-    height: 48,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+    refreshButton: {
+      marginTop: 18,
+      height: 48,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
 
-  refreshText: {
-    color: "#2563EB",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-});
+    refreshText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+  });
