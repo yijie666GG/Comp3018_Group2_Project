@@ -12,13 +12,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 
+import { useTheme } from '../theme/ThemeContext';
+
 export default function NotificationsScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = createStyles(colors);
+
   const [financialYearReminder, setFinancialYearReminder] = useState(true);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.content}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -28,7 +32,7 @@ export default function NotificationsScreen() {
             <Ionicons
               name="chevron-back"
               size={22}
-              color="#172033"
+              color={colors.text}
             />
           </TouchableOpacity>
 
@@ -41,14 +45,13 @@ export default function NotificationsScreen() {
           Choose whether you want to be reminded about the upcoming financial year.
         </Text>
 
-        {/* Reminder */}
         <View style={styles.reminderCard}>
           <View style={styles.reminderLeft}>
             <View style={styles.iconBox}>
               <Ionicons
                 name="calendar-outline"
                 size={22}
-                color="#2563EB"
+                color={colors.primary}
               />
             </View>
 
@@ -67,11 +70,15 @@ export default function NotificationsScreen() {
             value={financialYearReminder}
             onValueChange={setFinancialYearReminder}
             trackColor={{
-              false: '#D7DEE9',
-              true: '#93B9FF',
+              false: isDark ? '#475569' : '#D7DEE9',
+              true: isDark ? '#1E40AF' : '#93B9FF',
             }}
             thumbColor={
-              financialYearReminder ? '#2563EB' : '#FFFFFF'
+              financialYearReminder
+                ? colors.primary
+                : isDark
+                  ? '#CBD5E1'
+                  : '#FFFFFF'
             }
           />
         </View>
@@ -80,7 +87,7 @@ export default function NotificationsScreen() {
           <Ionicons
             name="information-circle-outline"
             size={21}
-            color="#2563EB"
+            color={colors.primary}
           />
 
           <Text style={styles.infoText}>
@@ -92,109 +99,115 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    flex: 1,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-  },
+    content: {
+      flex: 1,
+      paddingHorizontal: 22,
+      paddingTop: 12,
+    },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 22,
+    },
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.softBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    title: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  spacer: {
-    width: 42,
-  },
+    spacer: {
+      width: 42,
+    },
 
-  description: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#7A8599',
-    marginBottom: 24,
-  },
+    description: {
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.secondaryText,
+      marginBottom: 24,
+    },
 
-  reminderCard: {
-    minHeight: 92,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    reminderCard: {
+      minHeight: 92,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+    },
 
-  reminderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
+    reminderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      marginRight: 12,
+    },
 
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    iconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  reminderInfo: {
-    flex: 1,
-  },
+    reminderInfo: {
+      flex: 1,
+    },
 
-  reminderTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    reminderTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  reminderSubtitle: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: '#7A8599',
-    marginTop: 4,
-  },
+    reminderSubtitle: {
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.secondaryText,
+      marginTop: 4,
+    },
 
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F8FF',
-    borderRadius: 15,
-    padding: 14,
-    marginTop: 18,
-  },
+    infoCard: {
+      flexDirection: 'row',
+      backgroundColor: colors.primarySoft,
+      borderRadius: 15,
+      padding: 14,
+      marginTop: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  infoText: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 11,
-    lineHeight: 17,
-    color: '#667085',
-  },
-});
+    infoText: {
+      flex: 1,
+      marginLeft: 9,
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.secondaryText,
+    },
+  });

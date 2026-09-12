@@ -19,6 +19,7 @@ import {
 } from "expo-router";
 
 import { categories } from "../data/categories";
+import { useTheme } from "../theme/ThemeContext";
 
 type ReceiptItem = {
   name: string;
@@ -36,6 +37,9 @@ type Receipt = {
 };
 
 export default function ReceiptReview() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const params = useLocalSearchParams();
 
   const receiptParam =
@@ -46,13 +50,13 @@ export default function ReceiptReview() {
   const originalReceipt: Receipt = receiptParam
     ? JSON.parse(receiptParam)
     : {
-        store: null,
-        date: null,
-        time: null,
-        total: null,
-        gst: null,
-        items: [],
-      };
+      store: null,
+      date: null,
+      time: null,
+      total: null,
+      gst: null,
+      items: [],
+    };
 
   const [items, setItems] =
     useState<ReceiptItem[]>(
@@ -68,18 +72,10 @@ export default function ReceiptReview() {
   const [categoryModalVisible, setCategoryModalVisible] =
     useState(false);
 
-  // =========================
-  // Open Category Selection
-  // =========================
-
   const openCategoryPicker = (index: number) => {
     setSelectedItemIndex(index);
     setCategoryModalVisible(true);
   };
-
-  // =========================
-  // Select Category
-  // =========================
 
   const selectCategory = (category: string) => {
     if (selectedItemIndex === null) {
@@ -90,9 +86,9 @@ export default function ReceiptReview() {
       currentItems.map((item, index) =>
         index === selectedItemIndex
           ? {
-              ...item,
-              category,
-            }
+            ...item,
+            category,
+          }
           : item
       )
     );
@@ -100,10 +96,6 @@ export default function ReceiptReview() {
     setCategoryModalVisible(false);
     setSelectedItemIndex(null);
   };
-
-  // =========================
-  // Remove Item
-  // =========================
 
   const removeItem = (index: number) => {
     setItems((currentItems) =>
@@ -113,71 +105,65 @@ export default function ReceiptReview() {
     );
   };
 
-  // =========================
-  // Save Receipt
-  // =========================
-
-const handleSaveReceipt = async () => {
-  const missingCategory = items.some(
-    (item) => item.category === null
-  );
-
-  if (missingCategory) {
-    Alert.alert(
-      "Category Required",
-      "Please select a category for every item before saving."
+  const handleSaveReceipt = async () => {
+    const missingCategory = items.some(
+      (item) => item.category === null
     );
-    return;
-  }
 
-  if (items.length === 0) {
-    Alert.alert(
-      "No Items",
-      "There are no receipt items to save."
-    );
-    return;
-  }
+    if (missingCategory) {
+      Alert.alert(
+        "Category Required",
+        "Please select a category for every item before saving."
+      );
+      return;
+    }
 
-  try {
-    await saveReceipt({
-      store: originalReceipt.store,
-      date: originalReceipt.date,
-      time: originalReceipt.time,
-      total: originalReceipt.total,
-      gst: originalReceipt.gst,
+    if (items.length === 0) {
+      Alert.alert(
+        "No Items",
+        "There are no receipt items to save."
+      );
+      return;
+    }
 
-      items: items.map((item) => ({
-        name: item.name,
-        price: item.price,
-        category: item.category as string,
-      })),
-    });
+    try {
+      await saveReceipt({
+        store: originalReceipt.store,
+        date: originalReceipt.date,
+        time: originalReceipt.time,
+        total: originalReceipt.total,
+        gst: originalReceipt.gst,
 
-    Alert.alert(
-      "Receipt Saved",
-      "Receipt saved successfully.",
-      [
-        {
-          text: "OK",
-          onPress: () =>
-            router.replace("/(tabs)/scan"),
-        },
-      ]
-    );
-  } catch (error) {
-    console.error("Save receipt error:", error);
+        items: items.map((item) => ({
+          name: item.name,
+          price: item.price,
+          category: item.category as string,
+        })),
+      });
 
-    Alert.alert(
-      "Save Error",
-      "Unable to save receipt."
-    );
-  }
-};
+      Alert.alert(
+        "Receipt Saved",
+        "Receipt saved successfully.",
+        [
+          {
+            text: "OK",
+            onPress: () =>
+              router.replace("/(tabs)/scan"),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Save receipt error:", error);
+
+      Alert.alert(
+        "Save Error",
+        "Unable to save receipt."
+      );
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
@@ -186,7 +172,7 @@ const handleSaveReceipt = async () => {
           <Ionicons
             name="arrow-back"
             size={24}
-            color="#172033"
+            color={colors.text}
           />
         </Pressable>
 
@@ -203,8 +189,6 @@ const handleSaveReceipt = async () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Receipt Summary */}
-
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
@@ -230,15 +214,11 @@ const handleSaveReceipt = async () => {
 
           {originalReceipt.time && (
             <View style={styles.summaryRow}>
-              <Text
-                style={styles.summaryLabel}
-              >
+              <Text style={styles.summaryLabel}>
                 Time
               </Text>
 
-              <Text
-                style={styles.summaryValue}
-              >
+              <Text style={styles.summaryValue}>
                 {originalReceipt.time}
               </Text>
             </View>
@@ -253,23 +233,19 @@ const handleSaveReceipt = async () => {
               $
               {originalReceipt.total !== null
                 ? originalReceipt.total.toFixed(
-                    2
-                  )
+                  2
+                )
                 : "0.00"}
             </Text>
           </View>
 
           {originalReceipt.gst !== null && (
             <View style={styles.summaryRow}>
-              <Text
-                style={styles.summaryLabel}
-              >
+              <Text style={styles.summaryLabel}>
                 GST
               </Text>
 
-              <Text
-                style={styles.summaryValue}
-              >
+              <Text style={styles.summaryValue}>
                 $
                 {originalReceipt.gst.toFixed(
                   2
@@ -286,8 +262,6 @@ const handleSaveReceipt = async () => {
         <Text style={styles.sectionSubtitle}>
           Select a category for each item.
         </Text>
-
-        {/* Items */}
 
         {items.map((item, index) => (
           <View
@@ -314,7 +288,7 @@ const handleSaveReceipt = async () => {
                 <Ionicons
                   name="trash-outline"
                   size={21}
-                  color="#DC2626"
+                  color={colors.danger}
                 />
               </Pressable>
             </View>
@@ -333,7 +307,7 @@ const handleSaveReceipt = async () => {
                 style={[
                   styles.categoryButtonText,
                   !item.category &&
-                    styles.placeholderCategory,
+                  styles.placeholderCategory,
                 ]}
               >
                 {item.category ??
@@ -343,7 +317,7 @@ const handleSaveReceipt = async () => {
               <Ionicons
                 name="chevron-down"
                 size={19}
-                color="#64748B"
+                color={colors.secondaryText}
               />
             </Pressable>
           </View>
@@ -354,7 +328,7 @@ const handleSaveReceipt = async () => {
             <Ionicons
               name="receipt-outline"
               size={40}
-              color="#94A3B8"
+              color={colors.mutedText}
             />
 
             <Text style={styles.emptyText}>
@@ -363,11 +337,9 @@ const handleSaveReceipt = async () => {
           </View>
         )}
 
-        {/* Save */}
-
         <Pressable
-        style={styles.saveButton}
-        onPress={handleSaveReceipt}
+          style={styles.saveButton}
+          onPress={handleSaveReceipt}
         >
           <Ionicons
             name="save-outline"
@@ -380,8 +352,6 @@ const handleSaveReceipt = async () => {
           </Text>
         </Pressable>
       </ScrollView>
-
-      {/* Category Modal */}
 
       <Modal
         visible={categoryModalVisible}
@@ -410,18 +380,14 @@ const handleSaveReceipt = async () => {
                   selectCategory(category)
                 }
               >
-                <Text
-                  style={
-                    styles.categoryOptionText
-                  }
-                >
+                <Text style={styles.categoryOptionText}>
                   {category}
                 </Text>
 
                 <Ionicons
                   name="chevron-forward"
                   size={18}
-                  color="#94A3B8"
+                  color={colors.mutedText}
                 />
               </Pressable>
             ))}
@@ -443,240 +409,241 @@ const handleSaveReceipt = async () => {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  header: {
-    paddingTop: 55,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
+    header: {
+      paddingTop: 55,
+      paddingHorizontal: 20,
+      paddingBottom: 15,
+      backgroundColor: colors.card,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
 
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-  },
+    backButton: {
+      width: 40,
+      height: 40,
+      justifyContent: "center",
+    },
 
-  headerSpacer: {
-    width: 40,
-  },
+    headerSpacer: {
+      width: 40,
+    },
 
-  title: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    title: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 50,
-  },
+    scrollContent: {
+      padding: 20,
+      paddingBottom: 50,
+    },
 
-  summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 25,
+    summaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 18,
+      marginBottom: 25,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
 
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
+    summaryLabel: {
+      color: colors.secondaryText,
+      fontSize: 14,
+    },
 
-  summaryLabel: {
-    color: "#64748B",
-    fontSize: 14,
-  },
+    summaryValue: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
 
-  summaryValue: {
-    color: "#172033",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+    totalValue: {
+      color: colors.primary,
+      fontSize: 18,
+      fontWeight: "800",
+    },
 
-  totalValue: {
-    color: "#2563EB",
-    fontSize: 18,
-    fontWeight: "800",
-  },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    sectionSubtitle: {
+      marginTop: 4,
+      marginBottom: 15,
+      color: colors.secondaryText,
+      fontSize: 13,
+    },
 
-  sectionSubtitle: {
-    marginTop: 4,
-    marginBottom: 15,
-    color: "#64748B",
-    fontSize: 13,
-  },
+    itemCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  itemCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
+    itemTopRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+    },
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    itemInfo: {
+      flex: 1,
+      paddingRight: 10,
+    },
 
-  itemTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
+    itemName: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+      lineHeight: 21,
+    },
 
-  itemInfo: {
-    flex: 1,
-    paddingRight: 10,
-  },
+    itemPrice: {
+      marginTop: 5,
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: "800",
+    },
 
-  itemName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#172033",
-    lineHeight: 21,
-  },
+    deleteButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: colors.dangerSoft,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  itemPrice: {
-    marginTop: 5,
-    color: "#2563EB",
-    fontSize: 16,
-    fontWeight: "800",
-  },
+    categoryLabel: {
+      marginTop: 16,
+      marginBottom: 7,
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.secondaryText,
+    },
 
-  deleteButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#FEF2F2",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    categoryButton: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.softBackground,
+    },
 
-  categoryLabel: {
-    marginTop: 16,
-    marginBottom: 7,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
-  },
+    categoryButtonText: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: "600",
+    },
 
-  categoryButton: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    placeholderCategory: {
+      color: colors.mutedText,
+      fontWeight: "400",
+    },
 
-  categoryButtonText: {
-    fontSize: 14,
-    color: "#172033",
-    fontWeight: "600",
-  },
+    emptyCard: {
+      paddingVertical: 35,
+      alignItems: "center",
+    },
 
-  placeholderCategory: {
-    color: "#94A3B8",
-    fontWeight: "400",
-  },
+    emptyText: {
+      marginTop: 10,
+      color: colors.mutedText,
+    },
 
-  emptyCard: {
-    paddingVertical: 35,
-    alignItems: "center",
-  },
+    saveButton: {
+      marginTop: 15,
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
 
-  emptyText: {
-    marginTop: 10,
-    color: "#94A3B8",
-  },
+    saveButtonText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "700",
+    },
 
-  saveButton: {
-    marginTop: 15,
-    backgroundColor: "#2563EB",
-    borderRadius: 14,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "flex-end",
+    },
 
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+    modalContent: {
+      backgroundColor: colors.card,
+      paddingHorizontal: 20,
+      paddingTop: 22,
+      paddingBottom: 30,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: 15,
+    },
 
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 30,
+    categoryOption: {
+      paddingVertical: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
 
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
+    categoryOptionText: {
+      fontSize: 16,
+      color: colors.text,
+    },
 
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-    marginBottom: 15,
-  },
+    cancelButton: {
+      marginTop: 18,
+      backgroundColor: colors.softBackground,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
 
-  categoryOption: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  categoryOptionText: {
-    fontSize: 16,
-    color: "#172033",
-  },
-
-  cancelButton: {
-    marginTop: 18,
-    backgroundColor: "#F1F5F9",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-
-  cancelText: {
-    color: "#475569",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});
+    cancelText: {
+      color: colors.secondaryText,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+  });

@@ -2,22 +2,28 @@ import { Tabs } from 'expo-router';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+import { useTheme } from '../../theme/ThemeContext';
+
 export default function TabLayout() {
+  const { colors } = useTheme();
+
+  const styles = createStyles(colors);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
 
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#8A94A8',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedText,
 
         tabBarStyle: {
           height: 78,
           paddingTop: 8,
           paddingBottom: 10,
           borderTopWidth: 1,
-          borderTopColor: '#E7EBF3',
-          backgroundColor: '#FFFFFF',
+          borderTopColor: colors.border,
+          backgroundColor: colors.card,
         },
 
         tabBarLabelStyle: {
@@ -31,7 +37,11 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home-outline" size={25} color={color} />
+            <Ionicons
+              name="home-outline"
+              size={25}
+              color={color}
+            />
           ),
         }}
       />
@@ -41,7 +51,11 @@ export default function TabLayout() {
         options={{
           title: 'Items',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="list-outline" size={27} color={color} />
+            <Ionicons
+              name="list-outline"
+              size={27}
+              color={color}
+            />
           ),
         }}
       />
@@ -59,7 +73,11 @@ export default function TabLayout() {
               style={styles.cameraButtonContainer}
             >
               <View style={styles.cameraButton}>
-                <Ionicons name="camera" size={30} color="#FFFFFF" />
+                <Ionicons
+                  name="camera"
+                  size={30}
+                  color="#FFFFFF"
+                />
               </View>
             </TouchableOpacity>
           ),
@@ -97,37 +115,38 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  cameraButtonContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-
-  cameraButton: {
-    position: 'absolute',
-    top: -22,
-
-    width: 66,
-    height: 66,
-
-    borderRadius: 22,
-
-    backgroundColor: '#2563EB',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    borderWidth: 6,
-    borderColor: '#FFFFFF',
-
-    shadowColor: '#2563EB',
-    shadowOffset: {
-      width: 0,
-      height: 6,
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    cameraButtonContainer: {
+      flex: 1,
+      alignItems: 'center',
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
 
-    elevation: 8,
-  },
-});
+    cameraButton: {
+      position: 'absolute',
+      top: -22,
+
+      width: 66,
+      height: 66,
+
+      borderRadius: 22,
+
+      backgroundColor: colors.primary,
+
+      justifyContent: 'center',
+      alignItems: 'center',
+
+      borderWidth: 6,
+      borderColor: colors.card,
+
+      shadowColor: colors.primary,
+      shadowOffset: {
+        width: 0,
+        height: 6,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+
+      elevation: 8,
+    },
+  });
