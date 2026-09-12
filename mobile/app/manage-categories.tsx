@@ -14,43 +14,46 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 
-import {uniqueCategories, addCategory, deleteCategory} from '../firebase/categories';
+import {
+  uniqueCategories,
+  addCategory as firebaseAddCategory,
+  deleteCategory as firebaseDeleteCategory,
+} from '../firebase/categories';
 
-type category = {
+import { useTheme } from '../theme/ThemeContext';
+
+type Category = {
   categoryId: string;
   categoryName: string;
 };
-const defaultCategories = [
-  'Work',
-  'Travel',
-  'Equipment',
-  'Education',
-  'Home Office',
-  'Technology',
-];
 
 export default function ManageCategoriesScreen() {
-  const [categories, setCategories] = useState<category[]>([]);
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
+  // Keep compatibility with the existing category work.
+  const [categories, setCategories] = useState<Array<Category | string>>([]);
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
 
-  useEffect(()=> {
+  useEffect(() => {
     loadcategories();
   }, []);
 
-  const loadcategories = async () =>{
-    try{
+  const loadcategories = async () => {
+    try {
       setLoading(true);
 
       const categoriesFromDB = await uniqueCategories();
 
       setCategories(categoriesFromDB);
-    }
-    catch(error){
-      console.log("error fetching users categories: ", error);
-    }
-    finally{
+    } catch (error) {
+      console.log(
+        'error fetching users categories: ',
+        error
+      );
+    } finally {
       setLoading(false);
     }
   };
@@ -59,27 +62,54 @@ export default function ManageCategoriesScreen() {
     const name = newCategory.trim();
 
     if (!name) {
-      Alert.alert('Category required', 'Enter a category name.');
+      Alert.alert(
+        'Category required',
+        'Enter a category name.'
+      );
       return;
     }
 
     const alreadyExists = categories.some(
-      (category) => category.categoryName.toLowerCase() === name.toLowerCase()
+      (category) => {
+        const categoryName =
+          typeof category === 'string'
+            ? category
+            : category.categoryName;
+
+        return (
+          categoryName.toLowerCase() ===
+          name.toLowerCase()
+        );
+      }
     );
 
     if (alreadyExists) {
-      Alert.alert('Already exists', 'This category already exists.');
+      Alert.alert(
+        'Already exists',
+        'This category already exists.'
+      );
       return;
     }
 
-    setCategories([...categories, name]);
+    setCategories([
+      ...categories,
+      name,
+    ]);
+
     setNewCategory('');
   };
 
-  const deleteCategory = (category: string) => {
+  const deleteCategory = (
+    category: Category | string
+  ) => {
+    const categoryName =
+      typeof category === 'string'
+        ? category
+        : category.categoryName;
+
     Alert.alert(
       'Delete category?',
-      `Remove "${category}"?`,
+      `Remove "${categoryName}"?`,
       [
         {
           text: 'Cancel',
@@ -90,7 +120,9 @@ export default function ManageCategoriesScreen() {
           style: 'destructive',
           onPress: () =>
             setCategories((current) =>
-              current.filter((item) => item !== category)
+              current.filter(
+                (item) => item !== category
+              )
             ),
         },
       ]
@@ -109,7 +141,7 @@ export default function ManageCategoriesScreen() {
             <Ionicons
               name="chevron-back"
               size={22}
-              color="#172033"
+              color={colors.text}
             />
           </TouchableOpacity>
 
@@ -135,7 +167,9 @@ export default function ManageCategoriesScreen() {
               value={newCategory}
               onChangeText={setNewCategory}
               placeholder="e.g. Professional fees"
-              placeholderTextColor="#8A94A8"
+              placeholderTextColor={
+                colors.mutedText
+              }
             />
 
             <TouchableOpacity
@@ -164,193 +198,225 @@ export default function ManageCategoriesScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={
+            styles.listContent
+          }
         >
-          {categories.map((category) => (
-            <View
-              key={category}
-              style={styles.categoryRow}
-            >
-              <View style={styles.categoryLeft}>
-                <View style={styles.categoryIcon}>
-                  <Ionicons
-                    name="pricetag-outline"
-                    size={19}
-                    color="#2563EB"
-                  />
+          {categories.map(
+            (category, index) => {
+              const categoryName =
+                typeof category === 'string'
+                  ? category
+                  : category.categoryName;
+
+              const categoryKey =
+                typeof category === 'string'
+                  ? `${category}-${index}`
+                  : category.categoryId;
+
+              return (
+                <View
+                  key={categoryKey}
+                  style={styles.categoryRow}
+                >
+                  <View
+                    style={styles.categoryLeft}
+                  >
+                    <View
+                      style={styles.categoryIcon}
+                    >
+                      <Ionicons
+                        name="pricetag-outline"
+                        size={19}
+                        color={colors.primary}
+                      />
+                    </View>
+
+                    <Text
+                      style={styles.categoryName}
+                    >
+                      {categoryName}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() =>
+                      deleteCategory(category)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={19}
+                      color={colors.danger}
+                    />
+                  </TouchableOpacity>
                 </View>
-
-                <Text style={styles.categoryName}>
-                  {category}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => deleteCategory(category)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={19}
-                  color="#DC2626"
-                />
-              </TouchableOpacity>
-            </View>
-          ))}
+              );
+            }
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    flex: 1,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-  },
+    content: {
+      flex: 1,
+      paddingHorizontal: 22,
+      paddingTop: 12,
+    },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor:
+        colors.softBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  title: {
-    fontSize: 21,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    title: {
+      fontSize: 21,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  headerSpacer: {
-    width: 42,
-  },
+    headerSpacer: {
+      width: 42,
+    },
 
-  description: {
-    color: '#7A8599',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 22,
-    marginBottom: 20,
-  },
+    description: {
+      color: colors.secondaryText,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 22,
+      marginBottom: 20,
+    },
 
-  createCard: {
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 26,
-  },
+    createCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 26,
+      backgroundColor: colors.card,
+    },
 
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#556078',
-    marginBottom: 9,
-  },
+    label: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.secondaryText,
+      marginBottom: 9,
+    },
 
-  createRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+    createRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
 
-  input: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 14,
-    backgroundColor: '#FBFCFE',
-    paddingHorizontal: 14,
-    color: '#172033',
-    fontSize: 14,
-  },
+    input: {
+      flex: 1,
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      backgroundColor:
+        colors.softBackground,
+      paddingHorizontal: 14,
+      color: colors.text,
+      fontSize: 14,
+    },
 
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    addButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  categoryCount: {
-    marginLeft: 8,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2563EB',
-    backgroundColor: '#EEF4FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
+    categoryCount: {
+      marginLeft: 8,
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.primary,
+      backgroundColor:
+        colors.primarySoft,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+    },
 
-  listContent: {
-    paddingBottom: 30,
-  },
+    listContent: {
+      paddingBottom: 30,
+    },
 
-  categoryRow: {
-    minHeight: 64,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    categoryRow: {
+      minHeight: 64,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
 
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    categoryLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  categoryIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    categoryIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  categoryName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#172033',
-  },
+    categoryName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
 
-  deleteButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+    deleteButton: {
+      width: 38,
+      height: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
