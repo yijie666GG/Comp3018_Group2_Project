@@ -19,6 +19,8 @@ import {
   getFinancialYearSettings,
 } from '../../firebase/financial-year';
 
+import { useTheme } from '../../theme/ThemeContext';
+
 const categories = [
   'All',
   'Work',
@@ -30,6 +32,9 @@ const categories = [
 ];
 
 export default function ItemsScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const currentFinancialYear = getCurrentFinancialYear();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -93,7 +98,7 @@ export default function ItemsScreen() {
           <Ionicons
             name="chevron-down-outline"
             size={20}
-            color="#172033"
+            color={colors.text}
           />
         </TouchableOpacity>
 
@@ -101,13 +106,13 @@ export default function ItemsScreen() {
           <Ionicons
             name="search-outline"
             size={20}
-            color="#8A94A8"
+            color={colors.mutedText}
           />
 
           <TextInput
             style={styles.searchInput}
             placeholder="Search item, receipt or category..."
-            placeholderTextColor="#8A94A8"
+            placeholderTextColor={colors.mutedText}
             value={search}
             onChangeText={setSearch}
           />
@@ -117,7 +122,7 @@ export default function ItemsScreen() {
               <Ionicons
                 name="close-circle"
                 size={19}
-                color="#8A94A8"
+                color={colors.mutedText}
               />
             </TouchableOpacity>
           )}
@@ -172,7 +177,7 @@ export default function ItemsScreen() {
             <Ionicons
               name="list-outline"
               size={30}
-              color="#2563EB"
+              color={colors.primary}
             />
           </View>
 
@@ -209,8 +214,6 @@ export default function ItemsScreen() {
                 key={year}
                 style={styles.yearOption}
                 onPress={() => {
-                  // Temporary selection for Items only.
-                  // This does NOT change the active financial year.
                   setSelectedYear(year);
                   setYearModalVisible(false);
                 }}
@@ -230,7 +233,7 @@ export default function ItemsScreen() {
                     <Ionicons
                       name="checkmark"
                       size={20}
-                      color="#2563EB"
+                      color={colors.primary}
                     />
                   )}
                 </View>
@@ -252,209 +255,213 @@ export default function ItemsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 16,
-    paddingBottom: 110,
-  },
+    content: {
+      paddingHorizontal: 22,
+      paddingTop: 16,
+      paddingBottom: 110,
+    },
 
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 24,
-  },
+    title: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 24,
+    },
 
-  yearSelector: {
-    height: 54,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FBFCFE',
-    marginBottom: 14,
-  },
+    yearSelector: {
+      height: 54,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+      marginBottom: 14,
+    },
 
-  yearText: {
-    fontSize: 16,
-    color: '#172033',
-    fontWeight: '600',
-  },
+    yearText: {
+      fontSize: 16,
+      color: colors.text,
+      fontWeight: '600',
+    },
 
-  searchBox: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#F3F6FB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    marginBottom: 14,
-  },
+    searchBox: {
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.softBackground,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      marginBottom: 14,
+    },
 
-  searchInput: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 14,
-    color: '#172033',
-  },
+    searchInput: {
+      flex: 1,
+      marginLeft: 9,
+      fontSize: 14,
+      color: colors.text,
+    },
 
-  categoryRow: {
-    gap: 8,
-    paddingBottom: 24,
-  },
+    categoryRow: {
+      gap: 8,
+      paddingBottom: 24,
+    },
 
-  categoryChip: {
-    paddingHorizontal: 14,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: '#E0E6F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
+    categoryChip: {
+      paddingHorizontal: 14,
+      height: 38,
+      borderRadius: 19,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.card,
+    },
 
-  categoryChipActive: {
-    backgroundColor: '#EEF4FF',
-    borderColor: '#A9CCFF',
-  },
+    categoryChipActive: {
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary,
+    },
 
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#667085',
-  },
+    categoryText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.secondaryText,
+    },
 
-  categoryTextActive: {
-    color: '#2563EB',
-  },
+    categoryTextActive: {
+      color: colors.primary,
+    },
 
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  manageText: {
-    color: '#2563EB',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+    manageText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
 
-  emptyCard: {
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    paddingVertical: 34,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
+    emptyCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      paddingVertical: 34,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
 
-  emptyIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
 
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  emptyText: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    color: '#7A8599',
-    maxWidth: 260,
-  },
+    emptyText: {
+      marginTop: 6,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+      color: colors.secondaryText,
+      maxWidth: 260,
+    },
 
-  filterText: {
-    marginTop: 12,
-    color: '#2563EB',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+    filterText: {
+      marginTop: 12,
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-  },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+      justifyContent: 'center',
+      paddingHorizontal: 28,
+    },
 
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-  },
+    modalCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 14,
-  },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 14,
+    },
 
-  yearOption: {
-    height: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    yearOption: {
+      height: 50,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
 
-  yearOptionText: {
-    fontSize: 15,
-    color: '#172033',
-  },
+    yearOptionText: {
+      fontSize: 15,
+      color: colors.text,
+    },
 
-  yearOptionRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+    yearOptionRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
 
-  activeYearText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
+    activeYearText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.primary,
+    },
 
-  cancelButton: {
-    marginTop: 16,
-    height: 46,
-    borderRadius: 13,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    cancelButton: {
+      marginTop: 16,
+      height: 46,
+      borderRadius: 13,
+      backgroundColor: colors.softBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  cancelText: {
-    color: '#2563EB',
-    fontWeight: '800',
-  },
-});
+    cancelText: {
+      color: colors.primary,
+      fontWeight: '800',
+    },
+  });
