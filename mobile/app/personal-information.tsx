@@ -17,7 +17,12 @@ import { router } from 'expo-router';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebase';
 
+import { useTheme } from '../theme/ThemeContext';
+
 export default function PersonalInformationScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
@@ -127,7 +132,7 @@ export default function PersonalInformationScreen() {
             <Ionicons
               name="chevron-back"
               size={22}
-              color="#172033"
+              color={colors.text}
             />
           </TouchableOpacity>
 
@@ -153,7 +158,7 @@ export default function PersonalInformationScreen() {
           placeholder={
             loading ? 'Loading...' : 'Enter your full name'
           }
-          placeholderTextColor="#8A94A8"
+          placeholderTextColor={colors.mutedText}
           editable={!loading}
         />
 
@@ -168,7 +173,7 @@ export default function PersonalInformationScreen() {
           ]}
           value={email}
           placeholder="name@example.com"
-          placeholderTextColor="#8A94A8"
+          placeholderTextColor={colors.mutedText}
           keyboardType="email-address"
           autoCapitalize="none"
           editable={false}
@@ -196,96 +201,97 @@ export default function PersonalInformationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
+    content: {
+      paddingHorizontal: 22,
+      paddingTop: 12,
+      paddingBottom: 40,
+    },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 22,
+    },
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.softBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    title: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  spacer: {
-    width: 42,
-  },
+    spacer: {
+      width: 42,
+    },
 
-  description: {
-    fontSize: 13,
-    color: '#7A8599',
-    marginBottom: 28,
-  },
+    description: {
+      fontSize: 13,
+      color: colors.secondaryText,
+      marginBottom: 28,
+    },
 
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#556078',
-    marginBottom: 8,
-  },
+    label: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.secondaryText,
+      marginBottom: 8,
+    },
 
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    backgroundColor: '#FBFCFE',
-    color: '#172033',
-    marginBottom: 20,
-  },
+    input: {
+      height: 52,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 15,
+      paddingHorizontal: 14,
+      backgroundColor: colors.card,
+      color: colors.text,
+      marginBottom: 20,
+    },
 
-  disabledInput: {
-    backgroundColor: '#F3F6FB',
-    color: '#7A8599',
-    marginBottom: 8,
-  },
+    disabledInput: {
+      backgroundColor: colors.softBackground,
+      color: colors.secondaryText,
+      marginBottom: 8,
+    },
 
-  emailHelper: {
-    fontSize: 11,
-    color: '#8A94A8',
-    marginBottom: 20,
-  },
+    emailHelper: {
+      fontSize: 11,
+      color: colors.mutedText,
+      marginBottom: 20,
+    },
 
-  saveButton: {
-    height: 54,
-    backgroundColor: '#2563EB',
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
+    saveButton: {
+      height: 54,
+      backgroundColor: colors.primary,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 10,
+    },
 
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
+    saveButtonDisabled: {
+      opacity: 0.6,
+    },
 
-  saveText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-});
+    saveText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '800',
+    },
+  });
