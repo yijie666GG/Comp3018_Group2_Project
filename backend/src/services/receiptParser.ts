@@ -12,62 +12,93 @@ export interface ParsedReceipt {
   gst: number | null;
 }
 
-/**
- * Convert common money text into a number.
- *
- * Supports:
- * 12.50
- * 12,50
- * $12.50
- * AUD 12.50
- * CHF 12.50
- */
-function parseMoney(value: string): number | null {
+// ======================================================
+// NORMALIZATION
+// ======================================================
+
+function normalizeText(
+  text: string
+): string {
+  return text
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ");
+}
+
+function normalizeLine(
+  line: string
+): string {
+  return line
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ======================================================
+// MONEY
+// ======================================================
+
+function parseMoney(
+  value: string
+): number | null {
   let cleaned = value
-    .replace(/[^\d.,-]/g, "")
+    .replace(
+      /[^\d.,-]/g,
+      ""
+    )
     .trim();
 
   if (!cleaned) {
     return null;
   }
 
-  // Example: 12,50 -> 12.50
+  // 12,50 -> 12.50
   if (
     cleaned.includes(",") &&
     !cleaned.includes(".")
   ) {
-    const parts = cleaned.split(",");
+    const parts =
+      cleaned.split(",");
 
     if (
       parts.length === 2 &&
       parts[1].length === 2
     ) {
-      cleaned = cleaned.replace(",", ".");
+      cleaned =
+        cleaned.replace(
+          ",",
+          "."
+        );
     }
   }
 
-  // Example: 1,234.50 -> 1234.50
+  // 1,234.50 -> 1234.50
   if (
     cleaned.includes(",") &&
     cleaned.includes(".")
   ) {
-    cleaned = cleaned.replace(/,/g, "");
+    cleaned =
+      cleaned.replace(
+        /,/g,
+        ""
+      );
   }
 
-  const number = parseFloat(cleaned);
+  const result =
+    Number.parseFloat(
+      cleaned
+    );
 
-  return Number.isFinite(number)
-    ? number
+  return Number.isFinite(result)
+    ? result
     : null;
 }
 
-/**
- * Find all money-like values from one line.
- */
-function getMoneyValues(line: string): number[] {
-  const matches = line.match(
-    /(?:AUD|USD|NZD|CHF|EUR|GBP|CAD|A\$|US\$|\$|€|£)?\s*\d+(?:[.,]\d{2})/gi
-  );
+function getMoneyValues(
+  line: string
+): number[] {
+  const matches =
+    line.match(
+      /(?:AUD|USD|NZD|CHF|EUR|GBP|CAD|A\$|US\$|\$|€|£)?\s*-?\d+(?:[.,]\d{2})(?:\s*(?:AUD|USD|NZD|CHF|EUR|GBP|CAD))?/gi
+    );
 
   if (!matches) {
     return [];
@@ -76,58 +107,103 @@ function getMoneyValues(line: string): number[] {
   return matches
     .map(parseMoney)
     .filter(
-      (value): value is number =>
+      (
+        value
+      ): value is number =>
         value !== null
     );
 }
 
-/**
- * Detect store name.
- */
+// ======================================================
+// STORE
+// ======================================================
+
 function detectStore(
   lines: string[],
-  text: string
+  fullText: string
 ): string | null {
   const knownStores = [
-    { pattern: /\bcoles\b/i, name: "Coles" },
     {
-      pattern: /\bwoolworths\b/i,
+      pattern:
+        /\bcoles\b/i,
+      name: "Coles",
+    },
+    {
+      pattern:
+        /\bwoolworths\b/i,
       name: "Woolworths",
     },
-    { pattern: /\baldi\b/i, name: "ALDI" },
-    { pattern: /\biga\b/i, name: "IGA" },
-    { pattern: /\bkmart\b/i, name: "Kmart" },
     {
-      pattern: /\bofficeworks\b/i,
+      pattern:
+        /\baldi\b/i,
+      name: "ALDI",
+    },
+    {
+      pattern:
+        /\biga\b/i,
+      name: "IGA",
+    },
+    {
+      pattern:
+        /\bkmart\b/i,
+      name: "Kmart",
+    },
+    {
+      pattern:
+        /\bofficeworks\b/i,
       name: "Officeworks",
     },
     {
-      pattern: /\bbunnings\b/i,
+      pattern:
+        /\bbunnings\b/i,
       name: "Bunnings",
     },
     {
-      pattern: /\bcostco\b/i,
+      pattern:
+        /\bcostco\b/i,
       name: "Costco",
     },
   ];
 
-  for (const store of knownStores) {
-    if (store.pattern.test(text)) {
+  for (
+    const store
+    of knownStores
+  ) {
+    if (
+      store.pattern.test(
+        fullText
+      )
+    ) {
       return store.name;
     }
   }
 
-  /**
-   * Fallback:
-   * Use first plausible header line.
-   */
-  for (const line of lines.slice(0, 6)) {
-    if (line.length < 3 || line.length > 60) {
+  for (
+    const line
+    of lines.slice(
+      0,
+      8
+    )
+  ) {
+    if (
+      line.length < 3 ||
+      line.length > 60
+    ) {
       continue;
     }
 
+    // Generic titles are NOT stores
     if (
-      /receipt|tax invoice|invoice|abn|phone|tel|www|http/i.test(
+      /^(cash\s+receipt|receipt|tax\s+invoice|invoice|sales\s+receipt)$/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    // Address / contact / metadata
+    if (
+      /\b(address|adress|street|road|phone|tel|telephone|fax|email|e-mail|www|http|date|time|rechn)\b/i.test(
         line
       )
     ) {
@@ -142,7 +218,19 @@ function detectStore(
       continue;
     }
 
-    if (getMoneyValues(line).length > 0) {
+    if (
+      getMoneyValues(
+        line
+      ).length > 0
+    ) {
+      continue;
+    }
+
+    if (
+      !/[A-Za-zÀ-ÿ]/.test(
+        line
+      )
+    ) {
       continue;
     }
 
@@ -152,243 +240,650 @@ function detectStore(
   return null;
 }
 
-/**
- * Detect date.
- *
- * Supports:
- * 28/08/2026
- * 28-08-2026
- * 28.08.2026
- */
+// ======================================================
+// DATE
+// ======================================================
+
 function detectDate(
   text: string
 ): string | null {
-  const match = text.match(
-    /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/
-  );
+  const patterns = [
+    /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/,
 
-  return match
-    ? match[0]
-    : null;
-}
-
-/**
- * Detect time.
- *
- * Supports:
- * 13:29
- * 13:29:17
- */
-function detectTime(
-  text: string
-): string | null {
-  const match = text.match(
-    /\b(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\b/
-  );
-
-  return match
-    ? match[0]
-    : null;
-}
-
-/**
- * Detect final receipt total.
- */
-function detectTotal(
-  lines: string[]
-): number | null {
-  const totalPatterns = [
-    /\bgrand\s+total\b/i,
-    /\bamount\s+due\b/i,
-    /\bbalance\s+due\b/i,
-    /\btotal\s+due\b/i,
-    /\btotal\b/i,
+    /\b\d{4}[./-]\d{1,2}[./-]\d{1,2}\b/,
   ];
 
-  for (const pattern of totalPatterns) {
-    for (const line of lines) {
-      if (!pattern.test(line)) {
-        continue;
-      }
+  for (
+    const pattern
+    of patterns
+  ) {
+    const match =
+      text.match(
+        pattern
+      );
 
-      // Ignore values that are clearly tax/subtotal lines.
-      if (
-        /subtotal|gst|vat|tax|saving|discount/i.test(
-          line
-        )
-      ) {
-        continue;
-      }
-
-      const values = getMoneyValues(line);
-
-      if (values.length > 0) {
-        return values[values.length - 1];
-      }
+    if (match) {
+      return match[0];
     }
   }
 
   return null;
 }
 
-/**
- * Detect GST / VAT / tax.
- */
-function detectGst(
+// ======================================================
+// TIME
+// ======================================================
+
+function detectTime(
+  text: string
+): string | null {
+  const match =
+    text.match(
+      /\b(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\b/
+    );
+
+  return match
+    ? match[0]
+    : null;
+}
+
+// ======================================================
+// TOTAL
+// ======================================================
+
+function isTotalLine(
+  line: string
+): boolean {
+  if (
+    /\bsub[-\s]?total\b/i.test(
+      line
+    )
+  ) {
+    return false;
+  }
+
+  return /\b(grand\s+total|amount\s+due|balance\s+due|total\s+due|total)\b/i.test(
+    line
+  );
+}
+
+function detectTotal(
   lines: string[]
 ): number | null {
-  for (const line of lines) {
+  const candidates:
+    number[] = [];
+
+  for (
+    const line
+    of lines
+  ) {
     if (
-      !/gst|vat|tax included|mwst|must/i.test(
+      !isTotalLine(
         line
       )
     ) {
       continue;
     }
 
-    const values = getMoneyValues(line);
-
-    if (values.length > 0) {
-      // Usually the tax amount is the last money value.
-      return values[values.length - 1];
+    if (
+      /\b(gst|vat|mwst|sales\s+tax|tax\s+included)\b/i.test(
+        line
+      )
+    ) {
+      continue;
     }
+
+    const values =
+      getMoneyValues(
+        line
+      );
+
+    if (
+      values.length > 0
+    ) {
+      candidates.push(
+        values[
+          values.length - 1
+        ]
+      );
+    }
+  }
+
+  if (
+    candidates.length ===
+    0
+  ) {
+    return null;
+  }
+
+  return Math.max(
+    ...candidates
+  );
+}
+
+// ======================================================
+// GST / VAT / TAX
+// ======================================================
+
+function detectGst(
+  lines: string[]
+): number | null {
+  for (
+    const line
+    of lines
+  ) {
+    if (
+      !/\b(gst|vat|mwst|sales\s+tax|tax\s+included|included\s+tax)\b/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    const values =
+      getMoneyValues(
+        line
+      );
+
+    if (
+      values.length ===
+      0
+    ) {
+      continue;
+    }
+
+    return values[
+      values.length - 1
+    ];
   }
 
   return null;
 }
 
-/**
- * Check whether a line is receipt metadata rather than an item.
- */
-function isIgnoredItemLine(
+// ======================================================
+// ITEM SECTION END
+// ======================================================
+
+function findItemEndIndex(
+  lines: string[]
+): number {
+  for (
+    let i = 0;
+    i < lines.length;
+    i++
+  ) {
+    const line =
+      lines[i];
+
+    if (
+      /\b(grand\s+total|sub[-\s]?total|subtotal|total\s*:|total\s+\d|total\s+for)\b/i.test(
+        line
+      )
+    ) {
+      return i;
+    }
+  }
+
+  return lines.length;
+}
+
+// ======================================================
+// QUANTITY / UNIT PRICE
+// ======================================================
+
+function isQuantityOrUnitPriceLine(
   line: string
 ): boolean {
-  return /total|subtotal|gst|vat|tax|eft|saving|discount|purchase|cash|change|credit|debit|visa|mastercard|balance|amount due|receipt|invoice|abn|auth|payment|thank you/i.test(
+  const value =
     line
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+  return (
+    // 2 @ $4.50 EACH
+    // 2 ® $4.50 EACH
+    // 2 © $4.50 EACH
+    /^\d+\s*[@®©]\s*(?:AUD\s*)?\$?\s*\d+(?:[.,]\d{2})\s*(?:EACH|EA)?$/i.test(
+      value
+    ) ||
+
+    // 2 @ EACH
+    // 2 ® EACH
+    /^\d+\s*[@®©]\s*(?:EACH|EA)$/i.test(
+      value
+    ) ||
+
+    // weird OCR symbol
+    /^\d+\s*[^A-Za-z0-9\s]{1,3}\s*(?:AUD\s*)?\$?\s*\d+(?:[.,]\d{2})\s*(?:EACH|EA)\b/i.test(
+      value
+    ) ||
+
+    // 2 x $4.50
+    /^\d+\s*[xX]\s*(?:AUD\s*)?\$?\s*\d+(?:[.,]\d{2})\s*(?:EACH|EA)?$/i.test(
+      value
+    )
   );
 }
 
-/**
- * Remove money, currency and quantity parts from item name.
- */
+// ======================================================
+// METADATA / NON ITEM
+// ======================================================
+
+function isMetadataLine(
+  line: string
+): boolean {
+  if (
+    isQuantityOrUnitPriceLine(
+      line
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    /\b(total|subtotal|gst|vat|mwst|sales\s+tax|tax\s+included|eft|cash|change|credit|debit|visa|mastercard|balance|amount\s+due|purchase|payment|auth|approved)\b/i.test(
+      line
+    ) ||
+
+    /\b(receipt|invoice|abn|address|adress|phone|telephone|tel|fax|email|e-mail|www|http|thank\s+you|loyalty|flybuys|card|date|time|rechn)\b/i.test(
+      line
+    ) ||
+
+    /\b(entspricht\s+in\s+euro|conversion|exchange\s+rate)\b/i.test(
+      line
+    ) ||
+
+    /^(description|item|items|qty|quantity|price|amount)$/i.test(
+      line.trim()
+    )
+  );
+}
+
+// ======================================================
+// CLEAN ITEM NAME
+// ======================================================
+
 function cleanItemName(
   line: string
 ): string {
-  return line
+  let name =
+    line
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+  if (
+    isQuantityOrUnitPriceLine(
+      name
+    )
+  ) {
+    return "";
+  }
+
+  // Remove prices
+  name = name.replace(
+    /(?:AUD|USD|NZD|CHF|EUR|GBP|CAD|A\$|US\$|\$|€|£)?\s*-?\d+(?:[.,]\d{2})(?:\s*(?:AUD|USD|NZD|CHF|EUR|GBP|CAD))?/gi,
+    " "
+  );
+
+  // Remove trailing "à"
+  name = name.replace(
+    /\s+[àa]\s*$/i,
+    " "
+  );
+
+  // Symbols at start
+  name = name.replace(
+    /^[*%#@®©¥|;:,._\s]+/,
+    ""
+  );
+
+  // x*¥MONDAY
+  name = name.replace(
+    /^[xX][*#%@®©¥]+\s*/i,
+    ""
+  );
+
+  // 0OMO -> OMO
+  name = name.replace(
+    /^0(?=[A-Za-z]{2,})/,
+    ""
+  );
+
+  // 2xLatte -> Latte
+  name = name.replace(
+    /^\d+\s*[xX]\s*/,
+    ""
+  );
+
+  name = name.replace(
+    /^[|;:,!]+\s*/,
+    ""
+  );
+
+  return name
     .replace(
-      /(?:AUD|USD|NZD|CHF|EUR|GBP|CAD|A\$|US\$|\$|€|£)?\s*\d+(?:[.,]\d{2})/gi,
+      /\s+/g,
       " "
     )
-    .replace(/^[*%#@\s]+/, "")
-    .replace(/^\d+\s*[xX]\s*/, "")
-    .replace(/\s+/g, " ")
     .trim();
 }
 
-/**
- * Detect receipt items.
- */
+// ======================================================
+// VALID ITEM NAME
+// ======================================================
+
+function isValidItemName(
+  name: string
+): boolean {
+  if (
+    name.length < 2
+  ) {
+    return false;
+  }
+
+  if (
+    !/[A-Za-zÀ-ÿ]/.test(
+      name
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    isMetadataLine(
+      name
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    /^(each|ea|chf|aud|usd|eur)$/i.test(
+      name
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+// ======================================================
+// ADD ITEM
+// ======================================================
+
+function addItem(
+  items: ReceiptItem[],
+  name: string,
+  price: number
+): void {
+  const cleaned =
+    cleanItemName(
+      name
+    );
+
+  if (
+    !isValidItemName(
+      cleaned
+    )
+  ) {
+    return;
+  }
+
+  if (
+    !Number.isFinite(
+      price
+    ) ||
+    price < 0 ||
+    price > 100000
+  ) {
+    return;
+  }
+
+  const duplicate =
+    items.some(
+      (item) =>
+        item.name
+          .toLowerCase() ===
+          cleaned.toLowerCase() &&
+        Math.abs(
+          item.price -
+            price
+        ) < 0.001
+    );
+
+  if (duplicate) {
+    return;
+  }
+
+  items.push({
+    name: cleaned,
+    price,
+  });
+}
+
+// ======================================================
+// ITEM PARSER
+// ======================================================
+
 function detectItems(
   lines: string[]
 ): ReceiptItem[] {
-  const items: ReceiptItem[] = [];
+  const items:
+    ReceiptItem[] = [];
 
-  for (const line of lines) {
-    if (isIgnoredItemLine(line)) {
-      continue;
-    }
-
-    const values = getMoneyValues(line);
-
-    if (values.length === 0) {
-      continue;
-    }
-
-    /**
-     * Examples:
-     *
-     * Milk 3.50
-     *
-     * 2x Latte Macchiato 4.50 9.00
-     *
-     * Use the LAST amount as the item's final line price.
-     */
-    const price =
-      values[values.length - 1];
-
-    const name =
-      cleanItemName(line);
-
-    if (name.length < 2) {
-      continue;
-    }
-
-    // Item name should contain letters.
-    if (!/[A-Za-zÀ-ÿ]/.test(name)) {
-      continue;
-    }
-
-    // Avoid duplicates.
-    const duplicate = items.some(
-      (item) =>
-        item.name.toLowerCase() ===
-          name.toLowerCase() &&
-        item.price === price
+  const endIndex =
+    findItemEndIndex(
+      lines
     );
 
-    if (duplicate) {
+  const itemLines =
+    lines.slice(
+      0,
+      endIndex
+    );
+
+  let pendingName:
+    | string
+    | null = null;
+
+  for (
+    let i = 0;
+    i <
+    itemLines.length;
+    i++
+  ) {
+    const line =
+      itemLines[i];
+
+    if (
+      isMetadataLine(
+        line
+      )
+    ) {
+      pendingName =
+        null;
+
       continue;
     }
 
-    items.push({
-      name,
-      price,
-    });
+    const values =
+      getMoneyValues(
+        line
+      );
+
+    // ----------------------------------------------
+    // Product + price
+    //
+    // Lorem 6.50
+    //
+    // 2xLatte Macchiato à 4.50 CHF 9.00
+    //
+    // Last money = item line total
+    // ----------------------------------------------
+
+    if (
+      values.length > 0
+    ) {
+      const price =
+        values[
+          values.length - 1
+        ];
+
+      const name =
+        cleanItemName(
+          line
+        );
+
+      if (
+        isValidItemName(
+          name
+        )
+      ) {
+        addItem(
+          items,
+          name,
+          price
+        );
+
+        pendingName =
+          null;
+
+        continue;
+      }
+
+      // ------------------------------------------
+      // Name and price split over two lines
+      // ------------------------------------------
+
+      if (
+        pendingName
+      ) {
+        addItem(
+          items,
+          pendingName,
+          price
+        );
+
+        pendingName =
+          null;
+      }
+
+      continue;
+    }
+
+    if (
+      line.length >= 2 &&
+      line.length <= 90 &&
+      /[A-Za-zÀ-ÿ]/.test(
+        line
+      )
+    ) {
+      pendingName =
+        line;
+    }
   }
 
   return items;
 }
 
+// ======================================================
+// MAIN PARSER
+// ======================================================
+
 export function parseReceipt(
-  text: string
+  rawText: string
 ): ParsedReceipt {
-  const lines = text
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) =>
-      line
-        .replace(/\s+/g, " ")
-        .trim()
-    )
-    .filter(
-      (line) =>
-        line.length > 0
+  const text =
+    normalizeText(
+      rawText
     );
 
+  const lines =
+    text
+      .split("\n")
+      .map(
+        normalizeLine
+      )
+      .filter(
+        (line) =>
+          line.length >
+          0
+      );
+
+  console.log(
+    "===== NORMALIZED RECEIPT LINES ====="
+  );
+
+  lines.forEach(
+    (
+      line,
+      index
+    ) => {
+      console.log(
+        `${index}: ${line}`
+      );
+    }
+  );
+
   const store =
-    detectStore(lines, text);
+    detectStore(
+      lines,
+      text
+    );
 
   const date =
-    detectDate(text);
+    detectDate(
+      text
+    );
 
   const time =
-    detectTime(text);
+    detectTime(
+      text
+    );
 
   const total =
-    detectTotal(lines);
+    detectTotal(
+      lines
+    );
 
   const gst =
-    detectGst(lines);
+    detectGst(
+      lines
+    );
 
   const items =
-    detectItems(lines);
+    detectItems(
+      lines
+    );
 
-  return {
-    store,
-    date,
-    time,
-    items,
-    total,
-    gst,
-  };
+  const result:
+    ParsedReceipt = {
+      store,
+      date,
+      time,
+      items,
+      total,
+      gst,
+    };
+
+  console.log(
+    "===== PARSED RECEIPT ====="
+  );
+
+  console.log(
+    JSON.stringify(
+      result,
+      null,
+      2
+    )
+  );
+
+  return result;
 }
