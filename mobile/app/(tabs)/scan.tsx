@@ -14,7 +14,12 @@ import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 
+import { useTheme } from "../../theme/ThemeContext";
+
 export default function ScanReceipt() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const [imageUri, setImageUri] =
     useState<string | null>(null);
 
@@ -98,7 +103,7 @@ export default function ScanReceipt() {
         Alert.alert(
           "Scan Error",
           data.message ??
-            "Unable to scan receipt."
+          "Unable to scan receipt."
         );
 
         return;
@@ -181,9 +186,9 @@ export default function ScanReceipt() {
         await scanUploadedReceipt(
           asset.uri,
           asset.fileName ??
-            `camera-receipt-${Date.now()}.jpg`,
+          `camera-receipt-${Date.now()}.jpg`,
           asset.mimeType ??
-            "image/jpeg"
+          "image/jpeg"
         );
       }
     } catch (error) {
@@ -252,10 +257,6 @@ export default function ScanReceipt() {
         Take a photo or choose a receipt from your gallery.
       </Text>
 
-      {/* =========================
-          Receipt Preview
-      ========================= */}
-
       <View style={styles.previewArea}>
         {imageUri ? (
           <Image
@@ -287,8 +288,6 @@ export default function ScanReceipt() {
           </View>
         )}
 
-        {/* Scanning Overlay */}
-
         {isScanning && (
           <View
             style={
@@ -312,19 +311,13 @@ export default function ScanReceipt() {
         )}
       </View>
 
-      {/* =========================
-          Camera + Gallery
-      ========================= */}
-
       <View style={styles.actionRow}>
-        {/* Camera */}
-
         <View style={styles.actionItem}>
           <Pressable
             style={[
               styles.roundActionButton,
               isScanning &&
-                styles.disabledButton,
+              styles.disabledButton,
             ]}
             onPress={
               openCamera
@@ -349,14 +342,12 @@ export default function ScanReceipt() {
           </Text>
         </View>
 
-        {/* Gallery */}
-
         <View style={styles.actionItem}>
           <Pressable
             style={[
               styles.roundActionButton,
               isScanning &&
-                styles.disabledButton,
+              styles.disabledButton,
             ]}
             onPress={
               pickImage
@@ -381,10 +372,6 @@ export default function ScanReceipt() {
           </Text>
         </View>
       </View>
-
-      {/* =========================
-          Status
-      ========================= */}
 
       {imageUri &&
         !isScanning && (
@@ -412,16 +399,12 @@ export default function ScanReceipt() {
   );
 }
 
-// =========================
-// Styles
-// =========================
-
-const styles =
+const createStyles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor:
-        "#FFFFFF",
+        colors.background,
       paddingHorizontal: 24,
       paddingTop: 70,
     },
@@ -430,20 +413,16 @@ const styles =
       fontSize: 28,
       fontWeight: "700",
       textAlign: "center",
-      color: "#172033",
+      color: colors.text,
     },
 
     subtitle: {
       fontSize: 15,
-      color: "#777777",
+      color: colors.secondaryText,
       textAlign: "center",
       marginTop: 12,
       marginBottom: 25,
     },
-
-    // =========================
-    // Receipt Preview
-    // =========================
 
     previewArea: {
       width: "100%",
@@ -465,6 +444,9 @@ const styles =
 
       position:
         "relative",
+
+      borderWidth: 1,
+      borderColor: colors.border,
     },
 
     emptyPreview: {
@@ -496,10 +478,6 @@ const styles =
         "100%",
     },
 
-    // =========================
-    // Scanning Overlay
-    // =========================
-
     scanningOverlay: {
       ...StyleSheet.absoluteFillObject,
 
@@ -526,10 +504,6 @@ const styles =
       marginTop:
         12,
     },
-
-    // =========================
-    // Camera + Gallery
-    // =========================
 
     actionRow: {
       flexDirection:
@@ -567,7 +541,7 @@ const styles =
         39,
 
       backgroundColor:
-        "#2563EB",
+        colors.primary,
 
       justifyContent:
         "center",
@@ -604,21 +578,13 @@ const styles =
         14,
 
       color:
-        "#555555",
+        colors.secondaryText,
     },
-
-    // =========================
-    // Disabled
-    // =========================
 
     disabledButton: {
       opacity:
         0.55,
     },
-
-    // =========================
-    // Status
-    // =========================
 
     successContainer: {
       flexDirection:
