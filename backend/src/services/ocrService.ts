@@ -3,94 +3,227 @@ import sharp from "sharp";
 import path from "path";
 import fs from "fs";
 
-export async function scanReceiptImage(
-  imagePath: string
-): Promise<string> {
-  const worker = await createWorker("eng");
+// ======================================================
+// OCR quality scoring
+// ======================================================
 
-  // Create temporary processed image
-  const processedImagePath = path.join(
-    path.dirname(imagePath),
-    `processed-${Date.now()}.png`
-  );
+function scoreOcrText(text: string): number {
+  if (!text) {
+    return 0;
+  }
+
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let score = 0;
+
+  for (const line of lines) {
+    const letters =
+      (line.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+
+    const numbers =
+      (line.match(/\d/g) || []).length;
+
+    const moneyValues =
+      (line.match(/\d+[.,]\d{2}/g) || []).length;
+
+    score += letters;
+    score += numbers * 0.5;
+    score += moneyValues * 5;
+
+    if (
+      /\b(total|subtotal|gst|tax|vat|mwst|cash|receipt|invoice|chf|aud|usd|eur)\b/i.test(
+        line
+      )
+    ) {
+      score += 8;
+    }
+
+    const garbage =
+      (
+        line.match(
+          /[^A-Za-zÀ-ÿ0-9\s.,:$€£@%\-()/]/g
+        ) || []
+      ).length;
+
+    score -= garbage * 0.5;
+  }
+
+  return score;
+}
+
+// ======================================================
+// Run one OCR pass
+// ======================================================
+
+async function runOCR(
+  imagePath: string,
+  processedImagePath: string,
+  thresholdMode: boolean
+): Promise<string> {
+  const metadata =
+    await sharp(imagePath).metadata();
+
+  const originalWidth =
+    metadata.width ?? 1200;
+
+  const targetWidth =
+    originalWidth < 2000
+      ? 2000
+      : Math.min(originalWidth, 2800);
+
+  let pipeline = sharp(imagePath)
+    .rotate()
+    .resize({
+      width: targetWidth,
+      withoutEnlargement: false,
+      fit: "inside",
+    })
+    .grayscale()
+    .normalize()
+    .sharpen({
+      sigma: 1.1,
+    });
+
+  if (thresholdMode) {
+    pipeline = pipeline
+      .linear(1.2, -10)
+      .threshold(175);
+  }
+
+  await pipeline
+    .png()
+    .toFile(processedImagePath);
+
+  const worker =
+    await createWorker("eng");
 
   try {
-    console.log("Starting image preprocessing...");
-
-    // =========================
-    // Image Preprocessing
-    // =========================
-
-    await sharp(imagePath)
-      // Automatically rotate image using EXIF orientation
-      .rotate()
-
-      // Convert to grayscale
-      .grayscale()
-
-      // Improve contrast
-      .normalize()
-
-      // Sharpen receipt text
-      .sharpen()
-
-      // Resize large camera images
-      .resize({
-        width: 1800,
-        withoutEnlargement: true,
-      })
-
-      // Convert to PNG for OCR
-      .png()
-
-      .toFile(processedImagePath);
-
-    console.log(
-      "Image preprocessing completed."
-    );
-
-    console.log(
-      "Starting local OCR..."
-    );
-
-    // =========================
-    // Tesseract Configuration
-    // =========================
-
     await worker.setParameters({
       tessedit_pageseg_mode:
         PSM.SINGLE_BLOCK,
+
       preserve_interword_spaces:
         "1",
     });
-
-    // =========================
-    // OCR
-    // =========================
 
     const result =
       await worker.recognize(
         processedImagePath
       );
 
-    const text =
-      result.data.text;
+    return (
+      result.data.text ?? ""
+    ).trim();
+  } finally {
+    await worker.terminate();
+  }
+}
 
+// ======================================================
+// Main OCR function
+// ======================================================
+
+export async function scanReceiptImage(
+  imagePath: string
+): Promise<string> {
+  const normalImagePath =
+    path.join(
+      path.dirname(imagePath),
+      `processed-normal-${Date.now()}.png`
+    );
+
+  const thresholdImagePath =
+    path.join(
+      path.dirname(imagePath),
+      `processed-threshold-${Date.now()}.png`
+    );
+
+  try {
     console.log(
-      "OCR completed."
+      "===== OCR START ====="
     );
 
     console.log(
-      "========== OCR TEXT =========="
+      "Original image:",
+      imagePath
     );
 
-    console.log(text);
+    // ==========================================
+    // Pass 1 - normal enhanced image
+    // ==========================================
 
     console.log(
-      "=============================="
+      "Starting OCR pass 1..."
     );
 
-    return text;
+    const normalText =
+      await runOCR(
+        imagePath,
+        normalImagePath,
+        false
+      );
+
+    const normalScore =
+      scoreOcrText(
+        normalText
+      );
+
+    console.log(
+      "OCR pass 1 score:",
+      normalScore
+    );
+
+    // ==========================================
+    // Pass 2 - threshold image
+    // ==========================================
+
+    console.log(
+      "Starting OCR pass 2..."
+    );
+
+    const thresholdText =
+      await runOCR(
+        imagePath,
+        thresholdImagePath,
+        true
+      );
+
+    const thresholdScore =
+      scoreOcrText(
+        thresholdText
+      );
+
+    console.log(
+      "OCR pass 2 score:",
+      thresholdScore
+    );
+
+    // ==========================================
+    // Select best result
+    // ==========================================
+
+    const bestText =
+      thresholdScore >
+      normalScore
+        ? thresholdText
+        : normalText;
+
+    console.log(
+      "===== RAW OCR TEXT ====="
+    );
+
+    console.log(
+      bestText
+    );
+
+    console.log(
+      "===== OCR END ====="
+    );
+
+    return bestText;
   } catch (error) {
     console.error(
       "LOCAL OCR ERROR:"
@@ -100,29 +233,29 @@ export async function scanReceiptImage(
 
     throw error;
   } finally {
-    await worker.terminate();
+    const tempFiles = [
+      normalImagePath,
+      thresholdImagePath,
+    ];
 
-    // Delete processed temporary image
-    if (
-      fs.existsSync(
-        processedImagePath
-      )
-    ) {
-      try {
-        fs.unlinkSync(
-          processedImagePath
-        );
-
-        console.log(
-          "Processed image deleted."
-        );
-      } catch (
-        deleteError
+    for (const tempFile of tempFiles) {
+      if (
+        fs.existsSync(
+          tempFile
+        )
       ) {
-        console.error(
-          "Unable to delete processed image:",
+        try {
+          fs.unlinkSync(
+            tempFile
+          );
+        } catch (
           deleteError
-        );
+        ) {
+          console.error(
+            "Unable to delete processed image:",
+            deleteError
+          );
+        }
       }
     }
   }

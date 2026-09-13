@@ -18,14 +18,8 @@ import { router } from "expo-router";
 import { useTheme } from "../../theme/ThemeContext";
 
 export default function ScanReceipt() {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
-
-  const [imageUri, setImageUri] =
-    useState<string | null>(null);
-
-  const [isScanning, setIsScanning] =
-    useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   // =========================
   // Upload Receipt To Backend
@@ -63,27 +57,11 @@ const scanUploadedReceipt = async (
       );
     }
 
-    console.log("Uploading receipt:");
-    console.log("URI:", imageUri);
-    console.log("File name:", fileName);
-    console.log("Mime type:", mimeType);
-
-    const response = await fetch(
-      `${API_URL}/api/receipts/scan`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      console.log(
-        "Backend response:",
-        response.status,
-        errorText
-      );
+      console.log("===== Uploading Receipt =====");
+      console.log("API URL:", `${API_URL}/api/receipts/scan`);
+      console.log("URI:", imageUri);
+      console.log("File name:", fileName);
+      console.log("Mime type:", mimeType);
 
       throw new Error(
         `Backend returned status ${response.status}: ${errorText}`
@@ -91,27 +69,46 @@ const scanUploadedReceipt = async (
       );
     }
 
-    const data = await response.json();
+      console.log(
+        "Backend HTTP status:",
+        response.status
+      );
 
-    console.log(
-      "Receipt scan result:",
-      data
-    );
+      if (!response.ok) {
+        const errorText =
+          await response.text();
 
-    if (!data.success) {
-      Alert.alert(
-        "Scan Error",
-        data.message ??
-          "Unable to scan receipt."
+        console.log(
+          "Backend error response:",
+          errorText
+        );
+
+        throw new Error(
+          `Backend returned status ${response.status}: ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+
+      console.log(
+        "===== Receipt Scan Result ====="
+      );
+
+      console.log(
+        JSON.stringify(data, null, 2)
       );
 
       return;
     }
 
-    if (!data.receipt) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to upload or scan the receipt.";
+
       Alert.alert(
         "Scan Error",
-        "No receipt data was returned."
+        message
       );
 
       return;
@@ -162,34 +159,36 @@ const scanUploadedReceipt = async (
 
       const result =
         await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
           allowsEditing: false,
           quality: 0.8,
         });
 
       if (
-        !result.canceled &&
-        result.assets.length > 0
+        result.canceled ||
+        result.assets.length === 0
       ) {
-        const asset =
-          result.assets[0];
-
-        console.log(
-          "Camera result:",
-          asset
-        );
-
-        setImageUri(
-          asset.uri
-        );
-
-        await scanUploadedReceipt(
-          asset.uri,
-          asset.fileName ??
-          `camera-receipt-${Date.now()}.jpg`,
-          asset.mimeType ??
-          "image/jpeg"
-        );
+        return;
       }
+
+      const asset =
+        result.assets[0];
+
+      console.log(
+        "===== Camera Result ====="
+      );
+
+      console.log(asset);
+
+      setImageUri(asset.uri);
+
+      await scanUploadedReceipt(
+        asset.uri,
+        asset.fileName ??
+          `camera-receipt-${Date.now()}.jpg`,
+        asset.mimeType ??
+          "image/jpeg"
+      );
     } catch (error) {
       console.log(
         "Camera error:",
@@ -198,7 +197,9 @@ const scanUploadedReceipt = async (
 
       Alert.alert(
         "Camera Error",
-        "Unable to open or scan the receipt."
+        error instanceof Error
+          ? error.message
+          : "Unable to open or scan the receipt."
       );
     }
   };
@@ -217,18 +218,30 @@ const scanUploadedReceipt = async (
         });
 
       if (
-        !result.canceled &&
-        result.assets.length > 0
+        result.canceled ||
+        result.assets.length === 0
       ) {
-        const uri =
-          result.assets[0].uri;
-
-        setImageUri(uri);
-
-        await scanUploadedReceipt(
-          uri
-        );
+        return;
       }
+
+      const asset =
+        result.assets[0];
+
+      console.log(
+        "===== Gallery Result ====="
+      );
+
+      console.log(asset);
+
+      setImageUri(asset.uri);
+
+      await scanUploadedReceipt(
+        asset.uri,
+        asset.fileName ??
+          `gallery-receipt-${Date.now()}.jpg`,
+        asset.mimeType ??
+          "image/jpeg"
+      );
     } catch (error) {
       console.log(
         "Gallery error:",
@@ -237,7 +250,9 @@ const scanUploadedReceipt = async (
 
       Alert.alert(
         "Gallery Error",
-        "Unable to select or scan the image."
+        error instanceof Error
+          ? error.message
+          : "Unable to select or scan the image."
       );
     }
   };
@@ -318,12 +333,8 @@ const scanUploadedReceipt = async (
               isScanning &&
               styles.disabledButton,
             ]}
-            onPress={
-              openCamera
-            }
-            disabled={
-              isScanning
-            }
+            onPress={openCamera}
+            disabled={isScanning}
           >
             <Ionicons
               name="camera"
@@ -348,12 +359,8 @@ const scanUploadedReceipt = async (
               isScanning &&
               styles.disabledButton,
             ]}
-            onPress={
-              pickImage
-            }
-            disabled={
-              isScanning
-            }
+            onPress={pickImage}
+            disabled={isScanning}
           >
             <Ionicons
               name="images-outline"
@@ -402,8 +409,7 @@ const createStyles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor:
-        colors.background,
+      backgroundColor: "#FFFFFF",
       paddingHorizontal: 24,
       paddingTop: 70,
     },
@@ -459,22 +465,14 @@ const createStyles = (colors: any) =>
     },
 
     placeholder: {
-      color:
-        "#FFFFFF",
-
-      fontSize:
-        16,
-
-      marginTop:
-        12,
+      color: "#FFFFFF",
+      fontSize: 16,
+      marginTop: 12,
     },
 
     image: {
-      width:
-        "100%",
-
-      height:
-        "100%",
+      width: "100%",
+      height: "100%",
     },
 
     scanningOverlay: {
@@ -491,53 +489,29 @@ const createStyles = (colors: any) =>
     },
 
     scanningText: {
-      color:
-        "#FFFFFF",
-
-      fontSize:
-        16,
-
-      fontWeight:
-        "600",
-
-      marginTop:
-        12,
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+      marginTop: 12,
     },
 
     actionRow: {
-      flexDirection:
-        "row",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "flex-start",
-
-      gap:
-        55,
-
-      marginTop:
-        22,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "flex-start",
+      gap: 55,
+      marginTop: 22,
     },
 
     actionItem: {
-      alignItems:
-        "center",
-
-      width:
-        125,
+      alignItems: "center",
+      width: 125,
     },
 
     roundActionButton: {
-      width:
-        78,
-
-      height:
-        78,
-
-      borderRadius:
-        39,
+      width: 78,
+      height: 78,
+      borderRadius: 39,
 
       backgroundColor:
         colors.primary,
@@ -551,65 +525,40 @@ const createStyles = (colors: any) =>
       shadowColor:
         "#000000",
 
-      shadowOpacity:
-        0.15,
+      shadowOpacity: 0.15,
 
-      shadowRadius:
-        8,
+      shadowRadius: 8,
 
       shadowOffset: {
         width: 0,
         height: 4,
       },
 
-      elevation:
-        5,
+      elevation: 5,
     },
 
     actionLabel: {
-      textAlign:
-        "center",
-
-      marginTop:
-        8,
-
-      fontSize:
-        14,
-
-      color:
-        colors.secondaryText,
+      textAlign: "center",
+      marginTop: 8,
+      fontSize: 14,
+      color: "#555555",
     },
 
     disabledButton: {
-      opacity:
-        0.55,
+      opacity: 0.55,
     },
 
     successContainer: {
-      flexDirection:
-        "row",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
-      marginTop:
-        14,
-
-      gap:
-        6,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 14,
+      gap: 6,
     },
 
     success: {
-      fontSize:
-        15,
-
-      color:
-        "#16A34A",
-
-      fontWeight:
-        "600",
+      fontSize: 15,
+      color: "#16A34A",
+      fontWeight: "600",
     },
   });
