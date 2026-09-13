@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   View,
@@ -6,11 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+
+import {
+  getNotificationPreference,
+  setNotificationPreference,
+} from '../firebase/notification';
 
 import { useTheme } from '../theme/ThemeContext';
 
@@ -18,7 +24,62 @@ export default function NotificationsScreen() {
   const { colors, isDark } = useTheme();
   const styles = createStyles(colors);
 
-  const [financialYearReminder, setFinancialYearReminder] = useState(true);
+  const [financialYearReminder, setFinancialYearReminder] =
+    useState(true);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadPreference = async () => {
+      try {
+        const savedPreference =
+          await getNotificationPreference();
+
+        setFinancialYearReminder(savedPreference);
+      } catch (error) {
+        console.log(
+          'Load notification preference error:',
+          error
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPreference();
+  }, []);
+
+  const handleReminderChange = async (value: boolean) => {
+    try {
+      setSaving(true);
+
+      // Update the switch immediately.
+      setFinancialYearReminder(value);
+
+      await setNotificationPreference(value);
+
+      console.log(
+        'Financial year reminder saved:',
+        value
+      );
+    } catch (error) {
+      console.log(
+        'Save notification preference error:',
+        error
+      );
+
+      // Put the switch back if saving fails.
+      setFinancialYearReminder(!value);
+
+      Alert.alert(
+        'Unable to save preference',
+        'Please try again.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -36,7 +97,9 @@ export default function NotificationsScreen() {
             />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.title}>
+            Notifications
+          </Text>
 
           <View style={styles.spacer} />
         </View>
@@ -68,7 +131,8 @@ export default function NotificationsScreen() {
 
           <Switch
             value={financialYearReminder}
-            onValueChange={setFinancialYearReminder}
+            onValueChange={handleReminderChange}
+            disabled={loading || saving}
             trackColor={{
               false: isDark ? '#475569' : '#D7DEE9',
               true: isDark ? '#1E40AF' : '#93B9FF',
@@ -91,7 +155,7 @@ export default function NotificationsScreen() {
           />
 
           <Text style={styles.infoText}>
-            Your reminder preference will be stored with your account once the database is connected.
+            Your reminder preference is saved to your account.
           </Text>
         </View>
       </View>
