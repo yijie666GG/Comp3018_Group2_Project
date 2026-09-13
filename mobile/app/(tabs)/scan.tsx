@@ -8,11 +8,14 @@ import {
   Pressable,
   Image,
   Alert,
+  Platform,
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
+
+import { useTheme } from "../../theme/ThemeContext";
 
 export default function ScanReceipt() {
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -22,16 +25,28 @@ export default function ScanReceipt() {
   // Upload Receipt To Backend
   // =========================
 
-  const scanUploadedReceipt = async (
-    imageUri: string,
-    fileName: string = "receipt.jpg",
-    mimeType: string = "image/jpeg"
-  ) => {
-    try {
-      setIsScanning(true);
+const scanUploadedReceipt = async (
+  imageUri: string,
+  fileName: string = "receipt.jpg",
+  mimeType: string = "image/jpeg"
+) => {
+  try {
+    setIsScanning(true);
 
-      const formData = new FormData();
+    const formData = new FormData();
 
+    if (Platform.OS === "web") {
+      // Web: convert the blob URL into an actual Blob
+      const imageResponse = await fetch(imageUri);
+      const imageBlob = await imageResponse.blob();
+
+      formData.append(
+        "receipt",
+        imageBlob,
+        fileName
+      );
+    } else {
+      // Android/iOS: use the React Native file format
       formData.append(
         "receipt",
         {
@@ -40,6 +55,7 @@ export default function ScanReceipt() {
           type: mimeType,
         } as any
       );
+    }
 
       console.log("===== Uploading Receipt =====");
       console.log("API URL:", `${API_URL}/api/receipts/scan`);
@@ -47,13 +63,11 @@ export default function ScanReceipt() {
       console.log("File name:", fileName);
       console.log("Mime type:", mimeType);
 
-      const response = await fetch(
-        `${API_URL}/api/receipts/scan`,
-        {
-          method: "POST",
-          body: formData,
-        }
+      throw new Error(
+        `Backend returned status ${response.status}: ${errorText}`
+      
       );
+    }
 
       console.log(
         "Backend HTTP status:",
@@ -84,40 +98,8 @@ export default function ScanReceipt() {
         JSON.stringify(data, null, 2)
       );
 
-      if (!data.success) {
-        Alert.alert(
-          "Scan Error",
-          data.message ??
-            "Unable to scan receipt."
-        );
-
-        return;
-      }
-
-      if (!data.receipt) {
-        Alert.alert(
-          "Scan Error",
-          "No receipt data was returned."
-        );
-
-        return;
-      }
-
-      router.push({
-        pathname:
-          "/receipt-review" as any,
-
-        params: {
-          receipt: JSON.stringify(
-            data.receipt
-          ),
-        },
-      });
-    } catch (error) {
-      console.log(
-        "Receipt upload error:",
-        error
-      );
+      return;
+    }
 
       const message =
         error instanceof Error
@@ -128,10 +110,34 @@ export default function ScanReceipt() {
         "Scan Error",
         message
       );
-    } finally {
-      setIsScanning(false);
+
+      return;
     }
-  };
+
+    router.push({
+      pathname:
+        "/receipt-review" as any,
+
+      params: {
+        receipt: JSON.stringify(
+          data.receipt
+        ),
+      },
+    });
+  } catch (error) {
+    console.log(
+      "Receipt upload error:",
+      error
+    );
+
+    Alert.alert(
+      "Scan Error",
+      "Unable to upload or scan the receipt."
+    );
+  } finally {
+    setIsScanning(false);
+  }
+};
 
   // =========================
   // Camera
@@ -265,10 +271,6 @@ export default function ScanReceipt() {
         Take a photo or choose a receipt from your gallery.
       </Text>
 
-      {/* =========================
-          Receipt Preview
-      ========================= */}
-
       <View style={styles.previewArea}>
         {imageUri ? (
           <Image
@@ -300,8 +302,6 @@ export default function ScanReceipt() {
           </View>
         )}
 
-        {/* Scanning Overlay */}
-
         {isScanning && (
           <View
             style={
@@ -325,19 +325,13 @@ export default function ScanReceipt() {
         )}
       </View>
 
-      {/* =========================
-          Camera + Gallery
-      ========================= */}
-
       <View style={styles.actionRow}>
-        {/* Camera */}
-
         <View style={styles.actionItem}>
           <Pressable
             style={[
               styles.roundActionButton,
               isScanning &&
-                styles.disabledButton,
+              styles.disabledButton,
             ]}
             onPress={openCamera}
             disabled={isScanning}
@@ -358,14 +352,12 @@ export default function ScanReceipt() {
           </Text>
         </View>
 
-        {/* Gallery */}
-
         <View style={styles.actionItem}>
           <Pressable
             style={[
               styles.roundActionButton,
               isScanning &&
-                styles.disabledButton,
+              styles.disabledButton,
             ]}
             onPress={pickImage}
             disabled={isScanning}
@@ -386,10 +378,6 @@ export default function ScanReceipt() {
           </Text>
         </View>
       </View>
-
-      {/* =========================
-          Status
-      ========================= */}
 
       {imageUri &&
         !isScanning && (
@@ -417,11 +405,7 @@ export default function ScanReceipt() {
   );
 }
 
-// =========================
-// Styles
-// =========================
-
-const styles =
+const createStyles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -434,20 +418,16 @@ const styles =
       fontSize: 28,
       fontWeight: "700",
       textAlign: "center",
-      color: "#172033",
+      color: colors.text,
     },
 
     subtitle: {
       fontSize: 15,
-      color: "#777777",
+      color: colors.secondaryText,
       textAlign: "center",
       marginTop: 12,
       marginBottom: 25,
     },
-
-    // =========================
-    // Receipt Preview
-    // =========================
 
     previewArea: {
       width: "100%",
@@ -469,6 +449,9 @@ const styles =
 
       position:
         "relative",
+
+      borderWidth: 1,
+      borderColor: colors.border,
     },
 
     emptyPreview: {
@@ -492,10 +475,6 @@ const styles =
       height: "100%",
     },
 
-    // =========================
-    // Scanning Overlay
-    // =========================
-
     scanningOverlay: {
       ...StyleSheet.absoluteFillObject,
 
@@ -516,10 +495,6 @@ const styles =
       marginTop: 12,
     },
 
-    // =========================
-    // Camera + Gallery
-    // =========================
-
     actionRow: {
       flexDirection: "row",
       justifyContent: "center",
@@ -539,7 +514,7 @@ const styles =
       borderRadius: 39,
 
       backgroundColor:
-        "#2563EB",
+        colors.primary,
 
       justifyContent:
         "center",
@@ -572,10 +547,6 @@ const styles =
     disabledButton: {
       opacity: 0.55,
     },
-
-    // =========================
-    // Status
-    // =========================
 
     successContainer: {
       flexDirection: "row",

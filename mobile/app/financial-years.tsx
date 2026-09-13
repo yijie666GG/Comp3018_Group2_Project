@@ -21,7 +21,12 @@ import {
   setActiveFinancialYear,
 } from '../firebase/financial-year';
 
+import { useTheme } from '../theme/ThemeContext';
+
 export default function FinancialYearsScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const currentFinancialYear = getCurrentFinancialYear();
 
   const [financialYears, setFinancialYears] = useState([
@@ -113,11 +118,13 @@ export default function FinancialYearsScreen() {
             <Ionicons
               name="chevron-back"
               size={22}
-              color="#172033"
+              color={colors.text}
             />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Financial years</Text>
+          <Text style={styles.title}>
+            Financial years
+          </Text>
 
           <View style={styles.spacer} />
         </View>
@@ -141,7 +148,7 @@ export default function FinancialYearsScreen() {
               value={startYear}
               onChangeText={setStartYear}
               placeholder="e.g. 2027"
-              placeholderTextColor="#8A94A8"
+              placeholderTextColor={colors.mutedText}
               keyboardType="number-pad"
               maxLength={4}
             />
@@ -191,7 +198,7 @@ export default function FinancialYearsScreen() {
                     <Ionicons
                       name="calendar-outline"
                       size={21}
-                      color="#2563EB"
+                      color={colors.primary}
                     />
                   </View>
 
@@ -201,7 +208,9 @@ export default function FinancialYearsScreen() {
                     </Text>
 
                     <Text style={styles.yearSubtitle}>
-                      {selected ? 'Currently selected' : 'Tap to switch'}
+                      {selected
+                        ? 'Currently selected'
+                        : 'Tap to switch'}
                     </Text>
                   </View>
                 </View>
@@ -211,7 +220,7 @@ export default function FinancialYearsScreen() {
                     <Ionicons
                       name="checkmark"
                       size={17}
-                      color="#2563EB"
+                      color={colors.primary}
                     />
 
                     <Text style={styles.selectedText}>
@@ -228,7 +237,7 @@ export default function FinancialYearsScreen() {
           <Ionicons
             name="information-circle-outline"
             size={21}
-            color="#2563EB"
+            color={colors.primary}
           />
 
           <Text style={styles.infoText}>
@@ -240,186 +249,191 @@ export default function FinancialYearsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    flex: 1,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-  },
+    content: {
+      flex: 1,
+      paddingHorizontal: 22,
+      paddingTop: 12,
+    },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-  },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 22,
+    },
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#F3F6FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.softBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    title: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  spacer: {
-    width: 42,
-  },
+    spacer: {
+      width: 42,
+    },
 
-  description: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#7A8599',
-    marginBottom: 22,
-  },
+    description: {
+      fontSize: 13,
+      lineHeight: 19,
+      color: colors.secondaryText,
+      marginBottom: 22,
+    },
 
-  createCard: {
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 26,
-  },
+    createCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 26,
+      backgroundColor: colors.card,
+    },
 
-  label: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    label: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  helperText: {
-    fontSize: 11,
-    color: '#7A8599',
-    marginTop: 4,
-    marginBottom: 12,
-  },
+    helperText: {
+      fontSize: 11,
+      color: colors.secondaryText,
+      marginTop: 4,
+      marginBottom: 12,
+    },
 
-  createRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+    createRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
 
-  input: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 14,
-    backgroundColor: '#FBFCFE',
-    paddingHorizontal: 14,
-    color: '#172033',
-    fontSize: 14,
-  },
+    input: {
+      flex: 1,
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      backgroundColor: colors.softBackground,
+      paddingHorizontal: 14,
+      color: colors.text,
+      fontSize: 14,
+    },
 
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    addButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#172033',
-    marginBottom: 12,
-  },
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 12,
+    },
 
-  listContent: {
-    paddingBottom: 16,
-  },
+    listContent: {
+      paddingBottom: 16,
+    },
 
-  yearCard: {
-    minHeight: 72,
-    borderWidth: 1,
-    borderColor: '#E6EBF3',
-    borderRadius: 17,
-    padding: 13,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    yearCard: {
+      minHeight: 72,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 17,
+      padding: 13,
+      marginBottom: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+    },
 
-  yearCardActive: {
-    borderColor: '#A9CCFF',
-    backgroundColor: '#F8FAFF',
-  },
+    yearCardActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
 
-  yearLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    yearLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  iconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    iconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  iconBoxActive: {
-    backgroundColor: '#E4EEFF',
-  },
+    iconBoxActive: {
+      backgroundColor: colors.primarySoft,
+    },
 
-  yearTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#172033',
-  },
+    yearTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
 
-  yearSubtitle: {
-    fontSize: 11,
-    color: '#7A8599',
-    marginTop: 3,
-  },
+    yearSubtitle: {
+      fontSize: 11,
+      color: colors.secondaryText,
+      marginTop: 3,
+    },
 
-  selectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF4FF',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 3,
-  },
+    selectedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.primarySoft,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 12,
+      gap: 3,
+    },
 
-  selectedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
+    selectedText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.primary,
+    },
 
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F8FF',
-    borderRadius: 15,
-    padding: 14,
-    marginBottom: 20,
-  },
+    infoCard: {
+      flexDirection: 'row',
+      backgroundColor: colors.primarySoft,
+      borderRadius: 15,
+      padding: 14,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
 
-  infoText: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 11,
-    lineHeight: 17,
-    color: '#667085',
-  },
-});
+    infoText: {
+      flex: 1,
+      marginLeft: 9,
+      fontSize: 11,
+      lineHeight: 17,
+      color: colors.secondaryText,
+    },
+  });

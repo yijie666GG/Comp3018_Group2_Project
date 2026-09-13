@@ -1,6 +1,16 @@
 import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 import { ThemeProvider } from '../theme/ThemeContext';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function RootLayout() {
   return (
