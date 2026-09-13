@@ -18,6 +18,11 @@ import {
   setNotificationPreference,
 } from '../firebase/notification';
 
+import {
+  scheduleFinancialYearReminder,
+  cancelFinancialYearReminder,
+} from '../services/financialYearReminder';
+
 import { useTheme } from '../theme/ThemeContext';
 
 export default function NotificationsScreen() {
@@ -54,26 +59,54 @@ export default function NotificationsScreen() {
     try {
       setSaving(true);
 
-      // Update the switch immediately.
-      setFinancialYearReminder(value);
+      if (value) {
+        // Ask for notification permission and
+        // schedule the yearly reminder.
+        const scheduled =
+          await scheduleFinancialYearReminder();
 
-      await setNotificationPreference(value);
+        if (!scheduled) {
+          setFinancialYearReminder(false);
 
-      console.log(
-        'Financial year reminder saved:',
-        value
-      );
+          await setNotificationPreference(false);
+
+          Alert.alert(
+            'Notifications disabled',
+            'Notification permission is required to enable the financial year reminder.'
+          );
+
+          return;
+        }
+
+        // Save the preference to Firestore.
+        await setNotificationPreference(true);
+
+        setFinancialYearReminder(true);
+
+        console.log(
+          'Financial year reminder enabled'
+        );
+      } else {
+        // Cancel the notification scheduled on the device.
+        await cancelFinancialYearReminder();
+
+        // Save the preference to Firestore.
+        await setNotificationPreference(false);
+
+        setFinancialYearReminder(false);
+
+        console.log(
+          'Financial year reminder disabled'
+        );
+      }
     } catch (error) {
       console.log(
-        'Save notification preference error:',
+        'Financial year reminder error:',
         error
       );
 
-      // Put the switch back if saving fails.
-      setFinancialYearReminder(!value);
-
       Alert.alert(
-        'Unable to save preference',
+        'Unable to update reminder',
         'Please try again.'
       );
     } finally {
@@ -155,7 +188,7 @@ export default function NotificationsScreen() {
           />
 
           <Text style={styles.infoText}>
-            Your reminder preference is saved to your account.
+            When enabled, a reminder will be scheduled for 25 June at 9:00 AM before the new financial year begins on 1 July. Your preference is also saved to your account.
           </Text>
         </View>
       </View>
