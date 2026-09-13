@@ -8,6 +8,7 @@ import {
   Pressable,
   Image,
   Alert,
+  Platform,
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
@@ -30,16 +31,28 @@ export default function ScanReceipt() {
   // Upload Receipt To Backend
   // =========================
 
-  const scanUploadedReceipt = async (
-    imageUri: string,
-    fileName: string = "receipt.jpg",
-    mimeType: string = "image/jpeg"
-  ) => {
-    try {
-      setIsScanning(true);
+const scanUploadedReceipt = async (
+  imageUri: string,
+  fileName: string = "receipt.jpg",
+  mimeType: string = "image/jpeg"
+) => {
+  try {
+    setIsScanning(true);
 
-      const formData = new FormData();
+    const formData = new FormData();
 
+    if (Platform.OS === "web") {
+      // Web: convert the blob URL into an actual Blob
+      const imageResponse = await fetch(imageUri);
+      const imageBlob = await imageResponse.blob();
+
+      formData.append(
+        "receipt",
+        imageBlob,
+        fileName
+      );
+    } else {
+      // Android/iOS: use the React Native file format
       formData.append(
         "receipt",
         {
@@ -48,100 +61,86 @@ export default function ScanReceipt() {
           type: mimeType,
         } as any
       );
+    }
 
-      console.log(
-        "Uploading receipt:"
-      );
+    console.log("Uploading receipt:");
+    console.log("URI:", imageUri);
+    console.log("File name:", fileName);
+    console.log("Mime type:", mimeType);
 
-      console.log(
-        "URI:",
-        imageUri
-      );
-
-      console.log(
-        "File name:",
-        fileName
-      );
-
-      console.log(
-        "Mime type:",
-        mimeType
-      );
-
-      const response = await fetch(
-        `${API_URL}/api/receipts/scan`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        const errorText =
-          await response.text();
-
-        console.log(
-          "Backend response:",
-          response.status,
-          errorText
-        );
-
-        throw new Error(
-          `Backend returned status ${response.status}`
-        );
+    const response = await fetch(
+      `${API_URL}/api/receipts/scan`,
+      {
+        method: "POST",
+        body: formData,
       }
+    );
 
-      const data =
-        await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
 
       console.log(
-        "Receipt scan result:",
-        data
+        "Backend response:",
+        response.status,
+        errorText
       );
 
-      if (!data.success) {
-        Alert.alert(
-          "Scan Error",
-          data.message ??
-          "Unable to scan receipt."
-        );
-
-        return;
-      }
-
-      if (!data.receipt) {
-        Alert.alert(
-          "Scan Error",
-          "No receipt data was returned."
-        );
-
-        return;
-      }
-
-      router.push({
-        pathname:
-          "/receipt-review" as any,
-
-        params: {
-          receipt: JSON.stringify(
-            data.receipt
-          ),
-        },
-      });
-    } catch (error) {
-      console.log(
-        "Receipt upload error:",
-        error
+      throw new Error(
+        `Backend returned status ${response.status}: ${errorText}`
+      
       );
+    }
 
+    const data = await response.json();
+
+    console.log(
+      "Receipt scan result:",
+      data
+    );
+
+    if (!data.success) {
       Alert.alert(
         "Scan Error",
-        "Unable to upload or scan the receipt."
+        data.message ??
+          "Unable to scan receipt."
       );
-    } finally {
-      setIsScanning(false);
+
+      return;
     }
-  };
+
+    if (!data.receipt) {
+      Alert.alert(
+        "Scan Error",
+        "No receipt data was returned."
+      );
+
+      return;
+    }
+
+    router.push({
+      pathname:
+        "/receipt-review" as any,
+
+      params: {
+        receipt: JSON.stringify(
+          data.receipt
+        ),
+      },
+    });
+  } catch (error) {
+    console.log(
+      "Receipt upload error:",
+      error
+    );
+
+    Alert.alert(
+      "Scan Error",
+      "Unable to upload or scan the receipt."
+    );
+  } finally {
+    setIsScanning(false);
+  }
+};
 
   // =========================
   // Camera

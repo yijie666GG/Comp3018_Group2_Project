@@ -117,9 +117,11 @@ export default function Summary() {
 
   const filteredReceipts = useMemo(() => {
     return receipts.filter((receipt) => {
-      return getFinancialYear(receipt.date) === selectedYear;
-    });
-  }, [receipts, selectedYear]);
+    const dateToUse = receipt.date ?? receipt.createdAt;
+
+    return getFinancialYear(dateToUse) === selectedYear;
+  });
+}, [receipts, selectedYear]);
 
   const totalExpenses = useMemo(() => {
     return filteredReceipts.reduce((total, receipt) => {
