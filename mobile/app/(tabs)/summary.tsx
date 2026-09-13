@@ -8,11 +8,15 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getReceipts, SavedReceipt } from "../../services/receiptStorage";
+import { useTheme } from "../../theme/ThemeContext";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 type FinancialYear = "2024-2025" | "2025-2026" | "2026-2027";
 
@@ -101,8 +105,6 @@ const formatDate = (dateString: string | null): string => {
     return "Unknown date";
   }
 
-  // Convert ISO dates such as 2026-08-05
-  // into 2026-08-05 to match the design
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     return dateString;
   }
@@ -111,6 +113,13 @@ const formatDate = (dateString: string | null): string => {
 };
 
 export default function Summary() {
+  // ------------------------------------------
+  // Theme
+  // ------------------------------------------
+  const { colors } = useTheme();
+
+  const styles = createStyles(colors);
+
   const [selectedYear, setSelectedYear] =
     useState<FinancialYear>("2026-2027");
 
@@ -245,13 +254,128 @@ export default function Summary() {
   }, [expenses]);
 
   // ------------------------------------------
-  // Export button
+  // Export CSV
   // ------------------------------------------
-  const handleExportCSV = () => {
-    Alert.alert(
-      "Export CSV",
-      "CSV export is ready to be connected to the final export function."
-    );
+  const handleExportCSV = async () => {
+    try {
+      if (filteredReceipts.length === 0) {
+        Alert.alert(
+          "Export CSV",
+          "There are no receipts to export for this financial year."
+        );
+        return;
+      }
+
+      // Escape values for CSV
+      const escapeCSV = (
+        value: string | number | null | undefined
+      ) => {
+        const text = String(value ?? "");
+
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+
+      // CSV header
+      const rows: string[] = [
+        [
+          "Receipt ID",
+          "Store",
+          "Date",
+          "Receipt Total",
+          "Item",
+          "Category",
+          "Item Price",
+        ]
+          .map(escapeCSV)
+          .join(","),
+      ];
+
+      // Add receipt items
+      filteredReceipts.forEach((receipt) => {
+        receipt.items.forEach((item) => {
+          rows.push(
+            [
+              receipt.id,
+              receipt.store ?? "Unknown",
+              formatDate(
+                receipt.date ?? receipt.createdAt
+              ),
+              (receipt.total ?? 0).toFixed(2),
+              item.name,
+              item.category || "Other",
+              item.price.toFixed(2),
+            ]
+              .map(escapeCSV)
+              .join(",")
+          );
+        });
+      });
+
+      const csvContent = rows.join("\n");
+
+      // ------------------------------------------
+      // WEB EXPORT
+      // ------------------------------------------
+      if (Platform.OS === "web") {
+        const blob = new Blob([csvContent], {
+          type: "text/csv;charset=utf-8;",
+        });
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `expense-summary-${selectedYear}.csv`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+
+        return;
+      }
+
+      // ------------------------------------------
+      // MOBILE EXPORT
+      // ------------------------------------------
+      const fileName = `expense-summary-${selectedYear}.csv`;
+
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        csvContent,
+        {
+          encoding: FileSystem.EncodingType.UTF8,
+        }
+      );
+
+      const sharingAvailable =
+        await Sharing.isAvailableAsync();
+
+      if (!sharingAvailable) {
+        Alert.alert(
+          "Export CSV",
+          "Sharing is not available on this device."
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/csv",
+        dialogTitle: `Export ${selectedYear} summary`,
+        UTI: "public.comma-separated-values-text",
+      });
+    } catch (error) {
+      console.error("CSV export error:", error);
+
+      Alert.alert(
+        "Export CSV",
+        "Something went wrong while creating the CSV file."
+      );
+    }
   };
 
   // ------------------------------------------
@@ -260,7 +384,10 @@ export default function Summary() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+        />
 
         <Text style={styles.loadingText}>
           Loading summary...
@@ -270,7 +397,10 @@ export default function Summary() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top"]}
+    >
       {/* -------------------------------------- */}
       {/* Header */}
       {/* -------------------------------------- */}
@@ -283,7 +413,7 @@ export default function Summary() {
           <Ionicons
             name="chevron-back"
             size={20}
-            color="#172033"
+            color={colors.text}
           />
         </Pressable>
 
@@ -320,7 +450,7 @@ export default function Summary() {
           <Ionicons
             name="chevron-down"
             size={19}
-            color="#172033"
+            color={colors.text}
           />
         </Pressable>
 
@@ -507,7 +637,9 @@ export default function Summary() {
         >
           <Pressable
             style={styles.modalContent}
-            onPress={(event) => event.stopPropagation()}
+            onPress={(event) =>
+              event.stopPropagation()
+            }
           >
             <Text style={styles.modalTitle}>
               Select financial year
@@ -540,7 +672,7 @@ export default function Summary() {
                   <Ionicons
                     name="checkmark-circle"
                     size={21}
-                    color="#2563EB"
+                    color={colors.primary}
                   />
                 )}
               </Pressable>
@@ -553,386 +685,390 @@ export default function Summary() {
 }
 
 // ======================================================
-// STYLES
+// THEME-AWARE STYLES
 // ======================================================
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
+const createStyles = (
+  colors: ReturnType<typeof useTheme>["colors"]
+) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: "#64748B",
-  },
+    loadingText: {
+      marginTop: 10,
+      fontSize: 14,
+      color: colors.secondaryText,
+    },
 
-  // ------------------------------------------
-  // Header
-  // ------------------------------------------
+    // ------------------------------------------
+    // Header
+    // ------------------------------------------
 
-  header: {
-    height: 64,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-  },
+    header: {
+      height: 64,
+      paddingHorizontal: 20,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.background,
+    },
 
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: colors.softBackground,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  headerTitle: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    headerTitle: {
+      flex: 1,
+      marginLeft: 12,
+      fontSize: 18,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  exportButton: {
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+    exportButton: {
+      backgroundColor: colors.primarySoft,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+    },
 
-  exportText: {
-    color: "#2563EB",
-    fontSize: 13,
-    fontWeight: "800",
-  },
+    exportText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: "800",
+    },
 
-  // ------------------------------------------
-  // Scroll
-  // ------------------------------------------
+    // ------------------------------------------
+    // Scroll
+    // ------------------------------------------
 
-  scrollContent: {
-    padding: 22,
-    paddingBottom: 40,
-  },
+    scrollContent: {
+      padding: 22,
+      paddingBottom: 40,
+    },
 
-  // ------------------------------------------
-  // Financial year
-  // ------------------------------------------
+    // ------------------------------------------
+    // Financial year
+    // ------------------------------------------
 
-  yearSelector: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-  },
+    yearSelector: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.card,
+    },
 
-  yearText: {
-    fontSize: 14,
-    color: "#334155",
-    fontWeight: "500",
-  },
+    yearText: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: "500",
+    },
 
-  // ------------------------------------------
-  // Stats
-  // ------------------------------------------
+    // ------------------------------------------
+    // Stats
+    // ------------------------------------------
 
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
+    statsRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 12,
+    },
 
-  statCard: {
-    flex: 1,
-    minHeight: 86,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 16,
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
+    statCard: {
+      flex: 1,
+      minHeight: 86,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      justifyContent: "center",
+      backgroundColor: colors.card,
+    },
 
-  statLabel: {
-    fontSize: 12,
-    color: "#172033",
-    marginBottom: 7,
-  },
+    statLabel: {
+      fontSize: 12,
+      color: colors.secondaryText,
+      marginBottom: 7,
+    },
 
-  statAmount: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    statAmount: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    statNumber: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  // ------------------------------------------
-  // Category breakdown
-  // ------------------------------------------
+    // ------------------------------------------
+    // Category breakdown
+    // ------------------------------------------
 
-  sectionHeader: {
-    marginTop: 26,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    sectionHeader: {
+      marginTop: 26,
+      marginBottom: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  sectionYear: {
-    fontSize: 11,
-    color: "#64748B",
-  },
+    sectionYear: {
+      fontSize: 11,
+      color: colors.secondaryText,
+    },
 
-  categoryList: {
-    backgroundColor: "#FFFFFF",
-  },
+    categoryList: {
+      backgroundColor: colors.background,
+    },
 
-  categoryRow: {
-    minHeight: 67,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    categoryRow: {
+      minHeight: 67,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  categoryBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
+    categoryBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
 
-  categoryName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#172033",
-  },
+    categoryName: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+    },
 
-  itemCount: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+    itemCount: {
+      marginTop: 3,
+      fontSize: 12,
+      color: colors.mutedText,
+    },
 
-  categoryAmount: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    categoryAmount: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  // ------------------------------------------
-  // Receipts
-  // ------------------------------------------
+    // ------------------------------------------
+    // Receipts
+    // ------------------------------------------
 
-  receiptsTitle: {
-    marginTop: 20,
-    marginBottom: 10,
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    receiptsTitle: {
+      marginTop: 20,
+      marginBottom: 10,
+      fontSize: 16,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  receiptCard: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
+    receiptCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 14,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+    },
 
-  receiptHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    receiptHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
 
-  storeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    storeIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 13,
+      backgroundColor: colors.primarySoft,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  storeIconText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#2563EB",
-  },
+    storeIconText: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: colors.primary,
+    },
 
-  storeInfo: {
-    flex: 1,
-    marginLeft: 11,
-  },
+    storeInfo: {
+      flex: 1,
+      marginLeft: 11,
+    },
 
-  storeName: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    storeName: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  receiptDate: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#64748B",
-  },
+    receiptDate: {
+      marginTop: 3,
+      fontSize: 12,
+      color: colors.secondaryText,
+    },
 
-  receiptTotal: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    receiptTotal: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  receiptDivider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
-    marginTop: 13,
-  },
+    receiptDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginTop: 13,
+    },
 
-  receiptItem: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    receiptItem: {
+      minHeight: 48,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  itemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    borderStyle: "dashed",
-  },
+    itemBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      borderStyle: "dashed",
+    },
 
-  itemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    paddingRight: 10,
-  },
+    itemLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+      paddingRight: 10,
+    },
 
-  itemName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#172033",
-    marginRight: 7,
-  },
+    itemName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.text,
+      marginRight: 7,
+    },
 
-  categoryBadge: {
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
+    categoryBadge: {
+      backgroundColor: colors.primarySoft,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
 
-  categoryBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#2563EB",
-  },
+    categoryBadgeText: {
+      fontSize: 10,
+      fontWeight: "700",
+      color: colors.primary,
+    },
 
-  itemPrice: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    itemPrice: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.text,
+    },
 
-  // ------------------------------------------
-  // Empty states
-  // ------------------------------------------
+    // ------------------------------------------
+    // Empty states
+    // ------------------------------------------
 
-  emptyState: {
-    paddingVertical: 25,
-    alignItems: "center",
-  },
+    emptyState: {
+      paddingVertical: 25,
+      alignItems: "center",
+    },
 
-  emptyReceiptCard: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 25,
-    alignItems: "center",
-  },
+    emptyReceiptCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 25,
+      alignItems: "center",
+      backgroundColor: colors.card,
+    },
 
-  emptyText: {
-    fontSize: 13,
-    color: "#64748B",
-  },
+    emptyText: {
+      fontSize: 13,
+      color: colors.secondaryText,
+    },
 
-  bottomSpace: {
-    height: 30,
-  },
+    bottomSpace: {
+      height: 30,
+    },
 
-  // ------------------------------------------
-  // Modal
-  // ------------------------------------------
+    // ------------------------------------------
+    // Modal
+    // ------------------------------------------
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    paddingHorizontal: 25,
-  },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.25)",
+      justifyContent: "center",
+      paddingHorizontal: 25,
+    },
 
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-  },
+    modalContent: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 18,
+    },
 
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#172033",
-    marginBottom: 10,
-  },
+    modalTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: 10,
+    },
 
-  yearOption: {
-    minHeight: 48,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    yearOption: {
+      minHeight: 48,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  selectedYearOption: {
-    backgroundColor: "#EFF6FF",
-  },
+    selectedYearOption: {
+      backgroundColor: colors.primarySoft,
+    },
 
-  yearOptionText: {
-    fontSize: 14,
-    color: "#475569",
-  },
+    yearOptionText: {
+      fontSize: 14,
+      color: colors.secondaryText,
+    },
 
-  selectedYearText: {
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-});
+    selectedYearText: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
+  });
