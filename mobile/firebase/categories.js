@@ -37,8 +37,13 @@ export async function addCategory(params) {
             user.uid,
             "categories"
         ),{
-            name: name.trim(),
+            name: params.trim(),
         });
+
+        return{
+            categoryId: userCategories.id,
+            categoryName: params.trim(),
+        }
     }
     catch(error){
         console.log("There was an error trying to add this category: ", error);
@@ -55,10 +60,13 @@ export async function deleteCategory(params) {
             "users",
             user.uid,
             "categories",
-            categoryId
-        ))
+            params
+        ));
+        
+        return true;
     } 
     catch (error) {
         console.log("There was an error with deleting category: ", error);
+        return false;
     }
 }

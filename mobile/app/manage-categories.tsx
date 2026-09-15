@@ -32,7 +32,7 @@ export default function ManageCategoriesScreen() {
   const styles = createStyles(colors);
 
   // Keep compatibility with the existing category work.
-  const [categories, setCategories] = useState<Array<Category | string>>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -58,7 +58,7 @@ export default function ManageCategoriesScreen() {
     }
   };
 
-  const addCategory = () => {
+  const addCategory = async () => {
     const name = newCategory.trim();
 
     if (!name) {
@@ -91,25 +91,34 @@ export default function ManageCategoriesScreen() {
       return;
     }
 
-    setCategories([
-      ...categories,
-      name,
-    ]);
+    try {
+      setAdding(true);
 
-    setNewCategory('');
+      const addCategories = await firebaseAddCategory(name);
+
+      if (!addCategories){
+        Alert.alert('Could not add category');
+        return;
+      }
+
+      setCategories((current) =>[
+        ...current,
+        addCategories,
+      ]);
+
+      setNewCategory('');
+
+    } catch (error) {
+      console.log("Error adding category: ", error)
+    }finally{
+      setAdding(false);
+    }
   };
 
-  const deleteCategory = (
-    category: Category | string
-  ) => {
-    const categoryName =
-      typeof category === 'string'
-        ? category
-        : category.categoryName;
-
+  const deleteCategory = (category: Category) => {
     Alert.alert(
       'Delete category?',
-      `Remove "${categoryName}"?`,
+      `Remove "${category.categoryName}"?`,
       [
         {
           text: 'Cancel',
@@ -118,12 +127,25 @@ export default function ManageCategoriesScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () =>
-            setCategories((current) =>
-              current.filter(
-                (item) => item !== category
-              )
-            ),
+          onPress: async () =>{
+            try{
+              const deletedCategory = await firebaseDeleteCategory(category.categoryId);
+
+              if(!deletedCategory){
+                Alert.alert('Could not delete category');
+                return;
+              }
+
+              setCategories((current)=>
+                current.filter((item) =>
+                  item.categoryId !== category.categoryId
+                )
+              );
+            }
+            catch(error){
+              console.log("Error deleting category: ", error);
+            }
+          } 
         },
       ]
     );
