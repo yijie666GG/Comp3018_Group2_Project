@@ -21,41 +21,44 @@ export default function ScanReceipt() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   // =========================
   // Upload Receipt To Backend
   // =========================
 
-const scanUploadedReceipt = async (
-  imageUri: string,
-  fileName: string = "receipt.jpg",
-  mimeType: string = "image/jpeg"
-) => {
-  try {
-    setIsScanning(true);
+  const scanUploadedReceipt = async (
+    imageUri: string,
+    fileName: string = "receipt.jpg",
+    mimeType: string = "image/jpeg"
+  ) => {
+    try {
+      setIsScanning(true);
 
-    const formData = new FormData();
+      const formData = new FormData();
 
-    if (Platform.OS === "web") {
-      // Web: convert the blob URL into an actual Blob
-      const imageResponse = await fetch(imageUri);
-      const imageBlob = await imageResponse.blob();
+      if (Platform.OS === "web") {
+        // Web: convert the blob URL into an actual Blob
+        const imageResponse = await fetch(imageUri);
+        const imageBlob = await imageResponse.blob();
 
-      formData.append(
-        "receipt",
-        imageBlob,
-        fileName
-      );
-    } else {
-      // Android/iOS: use the React Native file format
-      formData.append(
-        "receipt",
-        {
-          uri: imageUri,
-          name: fileName,
-          type: mimeType,
-        } as any
-      );
-    }
+        formData.append(
+          "receipt",
+          imageBlob,
+          fileName
+        );
+      } else {
+        // Android/iOS: use the React Native file format
+        formData.append(
+          "receipt",
+          {
+            uri: imageUri,
+            name: fileName,
+            type: mimeType,
+          } as any
+        );
+      }
 
       console.log("===== Uploading Receipt =====");
       console.log("API URL:", `${API_URL}/api/receipts/scan`);
@@ -63,11 +66,13 @@ const scanUploadedReceipt = async (
       console.log("File name:", fileName);
       console.log("Mime type:", mimeType);
 
-      throw new Error(
-        `Backend returned status ${response.status}: ${errorText}`
-      
+      const response = await fetch(
+        `${API_URL}/api/receipts/scan`,
+        {
+          method: "POST",
+          body: formData,
+        }
       );
-    }
 
       console.log(
         "Backend HTTP status:",
@@ -75,8 +80,7 @@ const scanUploadedReceipt = async (
       );
 
       if (!response.ok) {
-        const errorText =
-          await response.text();
+        const errorText = await response.text();
 
         console.log(
           "Backend error response:",
@@ -98,8 +102,25 @@ const scanUploadedReceipt = async (
         JSON.stringify(data, null, 2)
       );
 
-      return;
-    }
+      if (!data?.receipt) {
+        throw new Error(
+          "The backend did not return receipt data."
+        );
+      }
+
+      router.push({
+        pathname: "/receipt-review" as any,
+        params: {
+          receipt: JSON.stringify(
+            data.receipt
+          ),
+        },
+      });
+    } catch (error) {
+      console.log(
+        "Receipt upload error:",
+        error
+      );
 
       const message =
         error instanceof Error
@@ -110,34 +131,10 @@ const scanUploadedReceipt = async (
         "Scan Error",
         message
       );
-
-      return;
+    } finally {
+      setIsScanning(false);
     }
-
-    router.push({
-      pathname:
-        "/receipt-review" as any,
-
-      params: {
-        receipt: JSON.stringify(
-          data.receipt
-        ),
-      },
-    });
-  } catch (error) {
-    console.log(
-      "Receipt upload error:",
-      error
-    );
-
-    Alert.alert(
-      "Scan Error",
-      "Unable to upload or scan the receipt."
-    );
-  } finally {
-    setIsScanning(false);
-  }
-};
+  };
 
   // =========================
   // Camera
@@ -185,9 +182,9 @@ const scanUploadedReceipt = async (
       await scanUploadedReceipt(
         asset.uri,
         asset.fileName ??
-          `camera-receipt-${Date.now()}.jpg`,
+        `camera-receipt-${Date.now()}.jpg`,
         asset.mimeType ??
-          "image/jpeg"
+        "image/jpeg"
       );
     } catch (error) {
       console.log(
@@ -238,9 +235,9 @@ const scanUploadedReceipt = async (
       await scanUploadedReceipt(
         asset.uri,
         asset.fileName ??
-          `gallery-receipt-${Date.now()}.jpg`,
+        `gallery-receipt-${Date.now()}.jpg`,
         asset.mimeType ??
-          "image/jpeg"
+        "image/jpeg"
       );
     } catch (error) {
       console.log(
@@ -409,7 +406,7 @@ const createStyles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#FFFFFF",
+      backgroundColor: colors.background,
       paddingHorizontal: 24,
       paddingTop: 70,
     },
@@ -432,36 +429,20 @@ const createStyles = (colors: any) =>
     previewArea: {
       width: "100%",
       height: 430,
-
-      backgroundColor:
-        "#111827",
-
+      backgroundColor: "#111827",
       borderRadius: 24,
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
-      overflow:
-        "hidden",
-
-      position:
-        "relative",
-
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
+      position: "relative",
       borderWidth: 1,
       borderColor: colors.border,
     },
 
     emptyPreview: {
       flex: 1,
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
+      justifyContent: "center",
+      alignItems: "center",
     },
 
     placeholder: {
@@ -477,15 +458,10 @@ const createStyles = (colors: any) =>
 
     scanningOverlay: {
       ...StyleSheet.absoluteFillObject,
-
       backgroundColor:
         "rgba(17,24,39,0.78)",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
+      justifyContent: "center",
+      alignItems: "center",
     },
 
     scanningText: {
@@ -512,28 +488,17 @@ const createStyles = (colors: any) =>
       width: 78,
       height: 78,
       borderRadius: 39,
-
       backgroundColor:
         colors.primary,
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
-      shadowColor:
-        "#000000",
-
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: "#000000",
       shadowOpacity: 0.15,
-
       shadowRadius: 8,
-
       shadowOffset: {
         width: 0,
         height: 4,
       },
-
       elevation: 5,
     },
 
@@ -541,7 +506,7 @@ const createStyles = (colors: any) =>
       textAlign: "center",
       marginTop: 8,
       fontSize: 14,
-      color: "#555555",
+      color: colors.secondaryText,
     },
 
     disabledButton: {
