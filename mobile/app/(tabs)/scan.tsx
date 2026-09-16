@@ -21,58 +21,92 @@ export default function ScanReceipt() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   // =========================
   // Upload Receipt To Backend
   // =========================
 
-const scanUploadedReceipt = async (
-  imageUri: string,
-  fileName: string = "receipt.jpg",
-  mimeType: string = "image/jpeg"
-) => {
-  try {
-    setIsScanning(true);
+  const scanUploadedReceipt = async (
+    imageUri: string,
+    fileName: string = "receipt.jpg",
+    mimeType: string = "image/jpeg"
+  ) => {
+    try {
+      setIsScanning(true);
 
-    const formData = new FormData();
+      const formData = new FormData();
 
-    if (Platform.OS === "web") {
-      // Web: convert the blob URL into an actual Blob
-      const imageResponse = await fetch(imageUri);
-      const imageBlob = await imageResponse.blob();
+      // =========================
+      // Prepare Receipt Image
+      // =========================
 
-      formData.append(
-        "receipt",
-        imageBlob,
+      if (Platform.OS === "web") {
+        // Web: convert image URL into Blob
+        const imageResponse = await fetch(imageUri);
+        const imageBlob = await imageResponse.blob();
+
+        formData.append(
+          "receipt",
+          imageBlob,
+          fileName
+        );
+      } else {
+        // Android / iOS
+        formData.append(
+          "receipt",
+          {
+            uri: imageUri,
+            name: fileName,
+            type: mimeType,
+          } as any
+        );
+      }
+
+      // =========================
+      // Upload Receipt
+      // =========================
+
+      console.log(
+        "===== Uploading Receipt ====="
+      );
+
+      console.log(
+        "API URL:",
+        `${API_URL}/api/receipts/scan`
+      );
+
+      console.log(
+        "URI:",
+        imageUri
+      );
+
+      console.log(
+        "File name:",
         fileName
       );
-    } else {
-      // Android/iOS: use the React Native file format
-      formData.append(
-        "receipt",
+
+      console.log(
+        "Mime type:",
+        mimeType
+      );
+
+      const response = await fetch(
+        `${API_URL}/api/receipts/scan`,
         {
-          uri: imageUri,
-          name: fileName,
-          type: mimeType,
-        } as any
+          method: "POST",
+          body: formData,
+        }
       );
-    }
-
-      console.log("===== Uploading Receipt =====");
-      console.log("API URL:", `${API_URL}/api/receipts/scan`);
-      console.log("URI:", imageUri);
-      console.log("File name:", fileName);
-      console.log("Mime type:", mimeType);
-
-      throw new Error(
-        `Backend returned status ${response.status}: ${errorText}`
-      
-      );
-    }
 
       console.log(
         "Backend HTTP status:",
         response.status
       );
+
+      // =========================
+      // Backend Error
+      // =========================
 
       if (!response.ok) {
         const errorText =
@@ -88,18 +122,57 @@ const scanUploadedReceipt = async (
         );
       }
 
-      const data = await response.json();
+      // =========================
+      // Parse Backend Result
+      // =========================
+
+      const data =
+        await response.json();
 
       console.log(
         "===== Receipt Scan Result ====="
       );
 
       console.log(
-        JSON.stringify(data, null, 2)
+        JSON.stringify(
+          data,
+          null,
+          2
+        )
       );
 
-      return;
-    }
+      if (!data?.receipt) {
+        throw new Error(
+          "Backend did not return receipt data."
+        );
+      }
+
+      // =========================
+      // Open Receipt Review
+      // =========================
+
+      router.push({
+        pathname:
+          "/receipt-review" as any,
+
+        params: {
+          receipt:
+            JSON.stringify(
+              data.receipt
+            ),
+
+          // Original image information
+          // Used later when saving to Firebase Storage
+          imageUri: imageUri,
+          fileName: fileName,
+          mimeType: mimeType,
+        },
+      });
+    } catch (error) {
+      console.log(
+        "Receipt upload error:",
+        error
+      );
 
       const message =
         error instanceof Error
@@ -110,34 +183,10 @@ const scanUploadedReceipt = async (
         "Scan Error",
         message
       );
-
-      return;
+    } finally {
+      setIsScanning(false);
     }
-
-    router.push({
-      pathname:
-        "/receipt-review" as any,
-
-      params: {
-        receipt: JSON.stringify(
-          data.receipt
-        ),
-      },
-    });
-  } catch (error) {
-    console.log(
-      "Receipt upload error:",
-      error
-    );
-
-    Alert.alert(
-      "Scan Error",
-      "Unable to upload or scan the receipt."
-    );
-  } finally {
-    setIsScanning(false);
-  }
-};
+  };
 
   // =========================
   // Camera
