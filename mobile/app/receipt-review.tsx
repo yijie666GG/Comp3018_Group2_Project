@@ -19,7 +19,6 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import { categories } from "../data/categories";
 import { useTheme } from "../theme/ThemeContext";
 
 type ReceiptItem = {
@@ -83,6 +82,83 @@ export default function ReceiptReview() {
       };
 
   // ======================================================
+  // Financial Year
+  // ======================================================
+
+  const getFinancialYearFromDate = (
+    date: string | null
+  ): string => {
+    const currentDate = new Date();
+
+    if (!date) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+
+      return month >= 7
+        ? `${year}-${year + 1}`
+        : `${year - 1}-${year}`;
+    }
+
+    const parts = date.split(/[./-]/);
+
+    if (parts.length >= 3) {
+      const month = Number(parts[1]);
+      let year = Number(parts[2]);
+
+      if (year < 100) {
+        year += 2000;
+      }
+
+      if (
+        Number.isFinite(month) &&
+        Number.isFinite(year) &&
+        month >= 1 &&
+        month <= 12
+      ) {
+        return month >= 7
+          ? `${year}-${year + 1}`
+          : `${year - 1}-${year}`;
+      }
+    }
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+
+    return month >= 7
+      ? `${year}-${year + 1}`
+      : `${year - 1}-${year}`;
+  };
+
+  const defaultFinancialYear =
+    getFinancialYearFromDate(
+      originalReceipt.date
+    );
+
+  const [
+    financialYear,
+    setFinancialYear,
+  ] = useState(defaultFinancialYear);
+
+  const [
+    financialYearModalVisible,
+    setFinancialYearModalVisible,
+  ] = useState(false);
+
+  const defaultStartYear = Number(
+    defaultFinancialYear.split("-")[0]
+  );
+
+  const financialYears = Array.from(
+    { length: 7 },
+    (_, index) => {
+      const startYear =
+        defaultStartYear + 3 - index;
+
+      return `${startYear}-${startYear + 1}`;
+    }
+  );
+
+  // ======================================================
   // Receipt items
   // ======================================================
 
@@ -94,48 +170,6 @@ export default function ReceiptReview() {
       }))
     );
 
-  // ======================================================
-  // Category modal
-  // ======================================================
-
-  const [
-    selectedItemIndex,
-    setSelectedItemIndex,
-  ] = useState<number | null>(null);
-
-  const [
-    categoryModalVisible,
-    setCategoryModalVisible,
-  ] = useState(false);
-
-  const openCategoryPicker = (
-    index: number
-  ) => {
-    setSelectedItemIndex(index);
-    setCategoryModalVisible(true);
-  };
-
-  const selectCategory = (
-    category: string
-  ) => {
-    if (selectedItemIndex === null) {
-      return;
-    }
-
-    setItems((currentItems) =>
-      currentItems.map((item, index) =>
-        index === selectedItemIndex
-          ? {
-              ...item,
-              category,
-            }
-          : item
-      )
-    );
-
-    setCategoryModalVisible(false);
-    setSelectedItemIndex(null);
-  };
 
   // ======================================================
   // Delete item
@@ -278,13 +312,13 @@ export default function ReceiptReview() {
       const missingCategory =
         items.some(
           (item) =>
-            item.category === null
+            !item.category?.trim()
         );
 
       if (missingCategory) {
         Alert.alert(
           "Category Required",
-          "Please select a category for every item before saving."
+          "Please enter a category for every item before saving."
         );
         return;
       }
@@ -306,6 +340,8 @@ export default function ReceiptReview() {
             date:
               originalReceipt.date,
 
+            financialYear,
+
             time:
               originalReceipt.time,
 
@@ -320,25 +356,17 @@ export default function ReceiptReview() {
                 name: item.name,
                 price: item.price,
                 category:
-                  item.category as string,
+                  item.category?.trim() ?? "",
               })
             ),
           },
 
-          imageUri
-            ? {
-                uri: imageUri,
-                fileName:
-                  imageFileName,
-                mimeType:
-                  imageMimeType,
-              }
-            : null
+
         );
 
         Alert.alert(
           "Receipt Saved",
-          "Receipt and image saved successfully.",
+          "Receipt saved successfully.",
           [
             {
               text: "OK",
@@ -451,6 +479,41 @@ export default function ReceiptReview() {
             </Text>
           </View>
 
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={styles.summaryLabel}
+            >
+              Financial Year
+            </Text>
+
+            <Pressable
+              style={
+                styles.financialYearButton
+              }
+              onPress={() =>
+                setFinancialYearModalVisible(
+                  true
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.financialYearValue
+                }
+              >
+                {financialYear}
+              </Text>
+
+              <Ionicons
+                name="chevron-down"
+                size={17}
+                color={colors.primary}
+              />
+            </Pressable>
+          </View>
+
           {originalReceipt.time && (
             <View
               style={
@@ -557,7 +620,7 @@ export default function ReceiptReview() {
                 styles.sectionSubtitle
               }
             >
-              Select a category for
+              Enter a category for
               each item.
             </Text>
           </View>
@@ -683,36 +746,28 @@ export default function ReceiptReview() {
                 Category
               </Text>
 
-              <Pressable
-                style={
-                  styles.categoryButton
+              <TextInput
+                style={styles.categoryInput}
+                value={item.category ?? ""}
+                onChangeText={(text) => {
+                  setItems((currentItems) =>
+                    currentItems.map(
+                      (currentItem, itemIndex) =>
+                        itemIndex === index
+                          ? {
+                              ...currentItem,
+                              category: text,
+                            }
+                          : currentItem
+                    )
+                  );
+                }}
+                placeholder="Enter category"
+                placeholderTextColor={
+                  colors.mutedText
                 }
-                onPress={() =>
-                  openCategoryPicker(
-                    index
-                  )
-                }
-              >
-                <Text
-                  style={[
-                    styles.categoryButtonText,
-
-                    !item.category &&
-                      styles.placeholderCategory,
-                  ]}
-                >
-                  {item.category ??
-                    "Select Category"}
-                </Text>
-
-                <Ionicons
-                  name="chevron-down"
-                  size={19}
-                  color={
-                    colors.secondaryText
-                  }
-                />
-              </Pressable>
+                autoCapitalize="words"
+              />
             </View>
           )
         )}
@@ -902,97 +957,87 @@ export default function ReceiptReview() {
       </Modal>
 
       {/* ==================================================
-          CATEGORY MODAL
+          FINANCIAL YEAR MODAL
       ================================================== */}
 
       <Modal
         visible={
-          categoryModalVisible
+          financialYearModalVisible
         }
         transparent
         animationType="fade"
         onRequestClose={() =>
-          setCategoryModalVisible(
+          setFinancialYearModalVisible(
             false
           )
         }
       >
         <Pressable
           style={
-            styles.modalOverlay
+            styles.yearModalOverlay
           }
           onPress={() =>
-            setCategoryModalVisible(
+            setFinancialYearModalVisible(
               false
             )
           }
         >
-          <View
+          <Pressable
             style={
-              styles.modalContent
+              styles.yearModalContent
             }
+            onPress={() => {}}
           >
             <Text
-              style={
-                styles.modalTitle
-              }
+              style={styles.yearModalTitle}
             >
-              Select Category
+              Select financial year
             </Text>
 
-            {categories.map(
-              (category) => (
+            {financialYears.map((year) => {
+              const selected =
+                year === financialYear;
+
+              return (
                 <Pressable
-                  key={category}
-                  style={
-                    styles.categoryOption
-                  }
-                  onPress={() =>
-                    selectCategory(
-                      category
-                    )
-                  }
+                  key={year}
+                  style={[
+                    styles.yearOption,
+                    selected &&
+                      styles.yearOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setFinancialYear(year);
+                    setFinancialYearModalVisible(
+                      false
+                    );
+                  }}
                 >
                   <Text
-                    style={
-                      styles.categoryOptionText
-                    }
+                    style={[
+                      styles.yearOptionText,
+                      selected &&
+                        styles.yearOptionTextSelected,
+                    ]}
                   >
-                    {category}
+                    {year}
                   </Text>
 
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={
-                      colors.mutedText
-                    }
-                  />
+                  {selected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color={colors.primary}
+                    />
+                  )}
                 </Pressable>
-              )
-            )}
-
-            <Pressable
-              style={
-                styles.cancelButton
-              }
-              onPress={() =>
-                setCategoryModalVisible(
-                  false
-                )
-              }
-            >
-              <Text
-                style={
-                  styles.cancelText
-                }
-              >
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+              );
+            })}
+          </Pressable>
         </Pressable>
       </Modal>
+
+
     </View>
   );
 }
@@ -1083,6 +1128,71 @@ const createStyles = (
       color: colors.primary,
       fontSize: 18,
       fontWeight: "800",
+    },
+
+    financialYearButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+
+    financialYearValue: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
+    yearModalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+
+    yearModalContent: {
+      backgroundColor:
+        colors.card,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+
+    yearModalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: 14,
+    },
+
+    yearOption: {
+      minHeight: 56,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 6,
+    },
+
+    yearOptionSelected: {
+      backgroundColor:
+        colors.softBackground,
+    },
+
+    yearOptionText: {
+      fontSize: 16,
+      color:
+        colors.secondaryText,
+      fontWeight: "500",
+    },
+
+    yearOptionTextSelected: {
+      color: colors.primary,
+      fontWeight: "700",
     },
 
     sectionHeader: {
@@ -1201,31 +1311,20 @@ const createStyles = (
         colors.secondaryText,
     },
 
-    categoryButton: {
+    categoryInput: {
       height: 48,
       borderWidth: 1,
       borderColor:
         colors.border,
       borderRadius: 12,
       paddingHorizontal: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
       backgroundColor:
         colors.softBackground,
-    },
-
-    categoryButtonText: {
-      fontSize: 14,
       color: colors.text,
+      fontSize: 14,
       fontWeight: "600",
     },
 
-    placeholderCategory: {
-      color: colors.mutedText,
-      fontWeight: "400",
-    },
 
     emptyCard: {
       paddingVertical: 35,
@@ -1347,63 +1446,5 @@ const createStyles = (
       fontWeight: "700",
     },
 
-    modalOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(0,0,0,0.55)",
-      justifyContent:
-        "flex-end",
-    },
 
-    modalContent: {
-      backgroundColor:
-        colors.card,
-      paddingHorizontal: 20,
-      paddingTop: 22,
-      paddingBottom: 30,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-    },
-
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: "800",
-      color: colors.text,
-      marginBottom: 15,
-    },
-
-    categoryOption: {
-      paddingVertical: 15,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        colors.border,
-      flexDirection: "row",
-      justifyContent:
-        "space-between",
-      alignItems: "center",
-    },
-
-    categoryOptionText: {
-      fontSize: 16,
-      color: colors.text,
-    },
-
-    cancelButton: {
-      marginTop: 18,
-      backgroundColor:
-        colors.softBackground,
-      borderRadius: 12,
-      paddingVertical: 14,
-      alignItems: "center",
-    },
-
-    cancelText: {
-      color:
-        colors.secondaryText,
-      fontSize: 15,
-      fontWeight: "700",
-    },
   });

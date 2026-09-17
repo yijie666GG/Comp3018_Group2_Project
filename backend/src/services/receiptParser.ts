@@ -120,124 +120,368 @@ function getMoneyValues(
 
 function detectStore(
   lines: string[],
-  fullText: string
+  _fullText: string
 ): string | null {
-  const knownStores = [
-    {
-      pattern:
-        /\bcoles\b/i,
-      name: "Coles",
-    },
-    {
-      pattern:
-        /\bwoolworths\b/i,
-      name: "Woolworths",
-    },
-    {
-      pattern:
-        /\baldi\b/i,
-      name: "ALDI",
-    },
-    {
-      pattern:
-        /\biga\b/i,
-      name: "IGA",
-    },
-    {
-      pattern:
-        /\bkmart\b/i,
-      name: "Kmart",
-    },
-    {
-      pattern:
-        /\bofficeworks\b/i,
-      name: "Officeworks",
-    },
-    {
-      pattern:
-        /\bbunnings\b/i,
-      name: "Bunnings",
-    },
-    {
-      pattern:
-        /\bcostco\b/i,
-      name: "Costco",
-    },
-  ];
+  type StoreCandidate = {
+    line: string;
+    index: number;
+    score: number;
+  };
 
-  for (
-    const store
-    of knownStores
-  ) {
+  const candidates: StoreCandidate[] = [];
+
+  // ------------------------------------------------------
+  // Analyse every OCR line.
+  // Do not use a hard-coded list of store names.
+  // ------------------------------------------------------
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (line.length < 3 || line.length > 60) {
+      continue;
+    }
+
+    // Must contain letters.
+    if (!/[A-Za-zÀ-ÿ]/.test(line)) {
+      continue;
+    }
+
+    // ----------------------------------------------------
+    // Remove obvious receipt structure / metadata
+    // ----------------------------------------------------
+
     if (
-      store.pattern.test(
-        fullText
+      /\b(description|item|items|qty|quantity|price|amount)\b/i.test(
+        line
       )
     ) {
-      return store.name;
+      continue;
     }
+
+    if (
+      /\b(total|subtotal|saving|savings|gst|vat|tax)\b/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      /\b(eft|cash|change|credit|debit|visa|mastercard|payment|purchase|approved|account|auth|card)\b/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      /\b(receipt|invoice|abn|phone|telephone|tel|fax|email|e-mail|www|http)\b/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    // ----------------------------------------------------
+    // Remove date / time
+    // ----------------------------------------------------
+
+    if (
+      /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      /\b\d{4}[./-]\d{1,2}[./-]\d{1,2}\b/.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      /\b(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\b/.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    // ----------------------------------------------------
+    // A line containing a price is normally an item,
+    // not the store title.
+    // ----------------------------------------------------
+
+    if (getMoneyValues(line).length > 0) {
+      continue;
+    }
+
+    let score = 0;
+
+    // ----------------------------------------------------
+    // Text quality
+    // ----------------------------------------------------
+
+    const letters =
+      (line.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+
+    const digits =
+      (line.match(/\d/g) || []).length;
+
+    const words =
+      line.split(/\s+/).filter(Boolean);
+
+    const letterRatio =
+      letters / Math.max(line.length, 1);
+
+    // Clean text is more likely to be a business name.
+    if (letterRatio >= 0.8) {
+      score += 6;
+    } else if (letterRatio >= 0.6) {
+      score += 3;
+    } else {
+      score -= 3;
+    }
+
+    // No numbers is preferred.
+    if (digits === 0) {
+      score += 4;
+    } else {
+      score -= digits * 2;
+    }
+
+    // ----------------------------------------------------
+    // Reasonable business-name structure
+    // ----------------------------------------------------
+
+    if (words.length >= 1 && words.length <= 5) {
+      score += 3;
+    }
+
+    if (line.length >= 4 && line.length <= 35) {
+      score += 3;
+    }
+
+    // Single clean word can be a store name.
+    // Example structure: "Example"
+    if (
+      words.length === 1 &&
+      /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'&.-]+$/.test(line)
+    ) {
+      score += 5;
+    }
+
+    // Title-like capitalization.
+    if (
+      /^[A-ZÀ-Þ][A-Za-zÀ-ÿ'&.-]*(?:\s+[A-ZÀ-Þ][A-Za-zÀ-ÿ'&.-]*)*$/.test(
+        line
+      )
+    ) {
+      score += 4;
+    }
+
+
+// ----------------------------------------------------
+// Address / contact detection
+// ----------------------------------------------------
+
+// Address labels.
+// Supports OCR variations such as:
+// Address, Adress, Addr
+if (
+  /^\s*(?:address|adress|addr)\s*[:.-]?/i.test(line)
+) {
+  continue;
+}
+
+// Telephone / contact labels.
+if (
+  /^\s*(?:tel|telephone|phone|fax)\s*[:.-]?/i.test(line)
+) {
+  continue;
+}
+
+// A line beginning with a street number is very
+// likely to be an address rather than a store name.
+if (
+  /^\s*\d{1,6}\s+[A-Za-zÀ-ÿ]/.test(line)
+) {
+  score -= 12;
+}
+
+// Common address structure.
+// This detects address terminology, not business names.
+if (
+  /\b(street|st|road|rd|avenue|ave|drive|dr|lane|ln|highway|hwy|boulevard|blvd)\b/i.test(
+    line
+  )
+) {
+  score -= 10;
+}
+
+
+    // ----------------------------------------------------
+    // Detect likely address / location lines
+    // ----------------------------------------------------
+
+    if (/^\d{3,6}\s+/.test(line)) {
+      score -= 10;
+    }
+
+    if (
+      /\b(street|st|road|rd|avenue|ave|drive|dr|highway|hwy)\b/i.test(
+        line
+      )
+    ) {
+      score -= 8;
+    }
+
+    // Country/state/location-like lines with codes/numbers.
+    if (
+      /\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\b/i.test(line)
+    ) {
+      score -= 6;
+    }
+
+    // ----------------------------------------------------
+    // OCR noise detection
+    // ----------------------------------------------------
+
+    const veryShortWords =
+      words.filter(
+        (word) =>
+          word.replace(/[^A-Za-zÀ-ÿ]/g, "").length <= 2
+      ).length;
+
+    // Example OCR garbage:
+    // "SE UR wy ee ge TT rE"
+    if (
+      words.length >= 4 &&
+      veryShortWords / words.length >= 0.6
+    ) {
+      score -= 12;
+    }
+
+    // Too many strange symbols.
+    const strangeCharacters =
+      (line.match(/[^A-Za-zÀ-ÿ0-9\s'&.,-]/g) || [])
+        .length;
+
+    if (strangeCharacters >= 3) {
+      score -= 6;
+    }
+
+    // ----------------------------------------------------
+    // Context
+    //
+    // Store names are often near transaction metadata,
+    // addresses, dates or payment information.
+    // ----------------------------------------------------
+
+    const previousLine =
+      i > 0 ? lines[i - 1] : "";
+
+    const nextLine =
+      i < lines.length - 1 ? lines[i + 1] : "";
+
+    const nearbyText =
+      `${previousLine} ${nextLine}`;
+
+    if (
+      /\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT|AU|Australia)\b/i.test(
+        nearbyText
+      )
+    ) {
+      score += 3;
+    }
+
+    if (
+      /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(
+        nearbyText
+      )
+    ) {
+      score += 3;
+    }
+
+    if (
+      /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(
+        nearbyText
+      )
+    ) {
+      score += 2;
+    }
+
+    if (
+      /\b(eft|cash|credit|debit|purchase|payment)\b/i.test(
+        nearbyText
+      )
+    ) {
+      score += 2;
+    }
+
+    // ----------------------------------------------------
+    // Position is only a weak signal.
+    //
+    // Many receipts put the store at the top, but some
+    // receipts place it later, so we do NOT restrict the
+    // search to the first few lines.
+    // ----------------------------------------------------
+
+    if (i < 5) {
+      score += 2;
+    }
+
+    candidates.push({
+      line,
+      index: i,
+      score,
+    });
   }
 
-  for (
-    const line
-    of lines.slice(
-      0,
-      8
-    )
-  ) {
-    if (
-      line.length < 3 ||
-      line.length > 60
-    ) {
-      continue;
-    }
+  // ------------------------------------------------------
+  // No suitable candidate
+  // ------------------------------------------------------
 
-    // Generic titles are NOT stores
-    if (
-      /^(cash\s+receipt|receipt|tax\s+invoice|invoice|sales\s+receipt)$/i.test(
-        line
-      )
-    ) {
-      continue;
-    }
-
-    // Address / contact / metadata
-    if (
-      /\b(address|adress|street|road|phone|tel|telephone|fax|email|e-mail|www|http|date|time|rechn)\b/i.test(
-        line
-      )
-    ) {
-      continue;
-    }
-
-    if (
-      /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/.test(
-        line
-      )
-    ) {
-      continue;
-    }
-
-    if (
-      getMoneyValues(
-        line
-      ).length > 0
-    ) {
-      continue;
-    }
-
-    if (
-      !/[A-Za-zÀ-ÿ]/.test(
-        line
-      )
-    ) {
-      continue;
-    }
-
-    return line;
+  if (candidates.length === 0) {
+    return null;
   }
 
-  return null;
+  // Highest score first.
+  candidates.sort(
+    (a, b) => b.score - a.score
+  );
+
+  console.log(
+    "===== STORE TITLE CANDIDATES ====="
+  );
+
+  candidates.forEach((candidate) => {
+    console.log(
+      `[${candidate.index}] score=${candidate.score} -> ${candidate.line}`
+    );
+  });
+
+  const best = candidates[0];
+
+  // Avoid returning a very weak guess.
+  if (best.score < 10) {
+    console.log(
+      "No reliable store title detected."
+    );
+
+    return null;
+  }
+
+  console.log(
+    "Selected store title:",
+    best.line
+  );
+
+  return best.line;
 }
 
 // ======================================================

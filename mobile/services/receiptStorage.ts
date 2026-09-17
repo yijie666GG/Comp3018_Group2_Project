@@ -10,16 +10,8 @@ import {
 } from "firebase/firestore";
 
 import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
-
-import {
   auth,
   db,
-  storage,
 } from "../firebase/firebase";
 
 /*
@@ -39,6 +31,7 @@ export type SavedReceipt = {
 
   store: string | null;
   date: string | null;
+  financialYear: string | null;
   time: string | null;
 
   total: number | null;
@@ -46,16 +39,7 @@ export type SavedReceipt = {
 
   items: SavedReceiptItem[];
 
-  imageUrl: string | null;
-  imagePath: string | null;
-
   createdAt: string;
-};
-
-export type ReceiptImage = {
-  uri: string;
-  fileName?: string | null;
-  mimeType?: string | null;
 };
 
 /*
@@ -79,276 +63,6 @@ function getCurrentUserReceiptsCollection() {
     user.uid,
     "receipts"
   );
-}
-
-/*
-========================================
-Get file extension
-========================================
-*/
-
-function getImageExtension(
-  fileName?: string | null,
-  mimeType?: string | null
-): string {
-  const lowerFileName =
-    fileName?.toLowerCase() ?? "";
-
-  if (
-    lowerFileName.endsWith(".png") ||
-    mimeType === "image/png"
-  ) {
-    return "png";
-  }
-
-  if (
-    lowerFileName.endsWith(".webp") ||
-    mimeType === "image/webp"
-  ) {
-    return "webp";
-  }
-
-  if (
-    lowerFileName.endsWith(".jpeg") ||
-    mimeType === "image/jpeg"
-  ) {
-    return "jpeg";
-  }
-
-  if (
-    lowerFileName.endsWith(".jpg")
-  ) {
-    return "jpg";
-  }
-
-  return "jpg";
-}
-
-/*
-========================================
-Upload Receipt Image
-========================================
-*/
-
-async function uploadReceiptImage(
-  image: ReceiptImage,
-  userId: string
-): Promise<{
-  imageUrl: string;
-  imagePath: string;
-}> {
-  console.log(
-    "===== Uploading Receipt Image ====="
-  );
-
-  console.log(
-    "Image URI:",
-    image.uri
-  );
-
-  console.log(
-    "Original file name:",
-    image.fileName
-  );
-
-  console.log(
-    "Original mime type:",
-    image.mimeType
-  );
-
-  /*
-  ========================================
-  Read local image
-  ========================================
-  */
-
-  const response =
-    await fetch(image.uri);
-
-  console.log(
-    "Image fetch status:",
-    response.status
-  );
-
-  console.log(
-    "Image fetch OK:",
-    response.ok
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Unable to read receipt image. Status: ${response.status}`
-    );
-  }
-
-  const blob =
-    await response.blob();
-
-  console.log(
-    "Blob size:",
-    blob.size
-  );
-
-  console.log(
-    "Blob type:",
-    blob.type
-  );
-
-  if (
-    !blob ||
-    blob.size === 0
-  ) {
-    throw new Error(
-      "Receipt image is empty."
-    );
-  }
-
-  /*
-  ========================================
-  Create Firebase Storage path
-  ========================================
-  */
-
-  const extension =
-    getImageExtension(
-      image.fileName,
-      image.mimeType
-    );
-
-  const uniqueFileName =
-    `receipt-${Date.now()}-${Math.round(
-      Math.random() * 1000000
-    )}.${extension}`;
-
-  const imagePath =
-    `users/${userId}/receipts/${uniqueFileName}`;
-
-  console.log(
-    "Generated image path:",
-    imagePath
-  );
-
-  console.log(
-    "Firebase Storage bucket:",
-    storage.app.options.storageBucket
-  );
-
-  const imageRef =
-    ref(
-      storage,
-      imagePath
-    );
-
-  /*
-  ========================================
-  Determine content type
-  ========================================
-  */
-
-  const contentType =
-    image.mimeType ||
-    blob.type ||
-    "image/jpeg";
-
-  console.log(
-    "Upload content type:",
-    contentType
-  );
-
-  /*
-  ========================================
-  Upload image
-  ========================================
-  */
-
-  try {
-    console.log(
-      "Starting Firebase Storage upload..."
-    );
-
-    const uploadResult =
-      await uploadBytes(
-        imageRef,
-        blob,
-        {
-          contentType,
-        }
-      );
-
-    console.log(
-      "Firebase Storage upload completed."
-    );
-
-    console.log(
-      "Uploaded full path:",
-      uploadResult.metadata.fullPath
-    );
-
-    console.log(
-      "Uploaded bucket:",
-      uploadResult.metadata.bucket
-    );
-  } catch (uploadError: any) {
-    console.error(
-      "===== Firebase Storage Upload Failed ====="
-    );
-
-    console.error(
-      "Storage error:",
-      uploadError
-    );
-
-    console.error(
-      "Storage error code:",
-      uploadError?.code
-    );
-
-    console.error(
-      "Storage error message:",
-      uploadError?.message
-    );
-
-    console.error(
-      "Storage server response:",
-      uploadError?.serverResponse
-    );
-
-    throw uploadError;
-  }
-
-  /*
-  ========================================
-  Get download URL
-  ========================================
-  */
-
-  console.log(
-    "Getting image download URL..."
-  );
-
-  const imageUrl =
-    await getDownloadURL(
-      imageRef
-    );
-
-  console.log(
-    "Receipt image uploaded successfully."
-  );
-
-  console.log(
-    "Image path:",
-    imagePath
-  );
-
-  console.log(
-    "Image URL:",
-    imageUrl
-  );
-
-  return {
-    imageUrl,
-    imagePath,
-  };
 }
 
 /*
@@ -398,6 +112,12 @@ export async function getReceipts(): Promise<
               ? data.date
               : null,
 
+          financialYear:
+            typeof data.financialYear ===
+            "string"
+              ? data.financialYear
+              : null,
+
           time:
             typeof data.time ===
             "string"
@@ -422,18 +142,6 @@ export async function getReceipts(): Promise<
             )
               ? data.items
               : [],
-
-          imageUrl:
-            typeof data.imageUrl ===
-            "string"
-              ? data.imageUrl
-              : null,
-
-          imagePath:
-            typeof data.imagePath ===
-            "string"
-              ? data.imagePath
-              : null,
 
           createdAt:
             data.createdAt
@@ -462,12 +170,8 @@ Save Receipt
 export async function saveReceipt(
   receipt: Omit<
     SavedReceipt,
-    | "id"
-    | "createdAt"
-    | "imageUrl"
-    | "imagePath"
-  >,
-  image?: ReceiptImage | null
+    "id" | "createdAt"
+  >
 ): Promise<SavedReceipt> {
   const user =
     auth.currentUser;
@@ -478,14 +182,6 @@ export async function saveReceipt(
     );
   }
 
-  let imageUrl:
-    | string
-    | null = null;
-
-  let imagePath:
-    | string
-    | null = null;
-
   try {
     console.log(
       "===== Saving Receipt ====="
@@ -495,31 +191,6 @@ export async function saveReceipt(
       "Firebase user:",
       user.uid
     );
-
-    console.log(
-      "Has receipt image:",
-      Boolean(image?.uri)
-    );
-
-    /*
-    ========================================
-    Upload original receipt image
-    ========================================
-    */
-
-    if (image?.uri) {
-      const uploadedImage =
-        await uploadReceiptImage(
-          image,
-          user.uid
-        );
-
-      imageUrl =
-        uploadedImage.imageUrl;
-
-      imagePath =
-        uploadedImage.imagePath;
-    }
 
     /*
     ========================================
@@ -549,6 +220,9 @@ export async function saveReceipt(
       date:
         receipt.date,
 
+      financialYear:
+        receipt.financialYear,
+
       time:
         receipt.time,
 
@@ -560,9 +234,6 @@ export async function saveReceipt(
 
       items:
         receipt.items,
-
-      imageUrl,
-      imagePath,
 
       createdAt:
         serverTimestamp(),
@@ -576,18 +247,15 @@ export async function saveReceipt(
 
     const savedReceipt:
       SavedReceipt = {
-      ...receipt,
+        ...receipt,
 
-      id:
-        docRef.id,
+        id:
+          docRef.id,
 
-      imageUrl,
-      imagePath,
-
-      createdAt:
-        new Date()
-          .toISOString(),
-    };
+        createdAt:
+          new Date()
+            .toISOString(),
+      };
 
     console.log(
       "Receipt saved to Firestore:",
@@ -596,41 +264,6 @@ export async function saveReceipt(
 
     return savedReceipt;
   } catch (error) {
-    /*
-    ========================================
-    Cleanup image if Firestore save fails
-    ========================================
-    */
-
-    if (imagePath) {
-      try {
-        console.log(
-          "Cleaning up uploaded image..."
-        );
-
-        const imageRef =
-          ref(
-            storage,
-            imagePath
-          );
-
-        await deleteObject(
-          imageRef
-        );
-
-        console.log(
-          "Uploaded image cleaned up."
-        );
-      } catch (
-        cleanupError
-      ) {
-        console.error(
-          "Unable to clean up receipt image:",
-          cleanupError
-        );
-      }
-    }
-
     console.error(
       "Failed to save receipt to Firebase:",
       error
@@ -647,8 +280,7 @@ Delete Receipt
 */
 
 export async function deleteReceipt(
-  id: string,
-  imagePath?: string | null
+  id: string
 ): Promise<void> {
   const user =
     auth.currentUser;
@@ -660,44 +292,6 @@ export async function deleteReceipt(
   }
 
   try {
-    /*
-    ========================================
-    Delete image from Firebase Storage
-    ========================================
-    */
-
-    if (imagePath) {
-      try {
-        const imageRef =
-          ref(
-            storage,
-            imagePath
-          );
-
-        await deleteObject(
-          imageRef
-        );
-
-        console.log(
-          "Receipt image deleted:",
-          imagePath
-        );
-      } catch (
-        imageDeleteError
-      ) {
-        console.error(
-          "Unable to delete receipt image:",
-          imageDeleteError
-        );
-      }
-    }
-
-    /*
-    ========================================
-    Delete Firestore document
-    ========================================
-    */
-
     const receiptRef =
       doc(
         db,
