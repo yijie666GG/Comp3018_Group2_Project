@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+
 import {
   View,
   Text,
@@ -8,13 +9,43 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect, router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { getReceipts, SavedReceipt } from "../../services/receiptStorage";
 
-type FinancialYear = "2024-2025" | "2025-2026" | "2026-2027";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
+import {
+  useFocusEffect,
+  router,
+} from "expo-router";
+
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import {
+  getReceipts,
+  SavedReceipt,
+} from "../../services/receiptStorage";
+
+import {
+  getFinancialYearSettings,
+} from "../../firebase/financial-year";
+
+import { useTheme } from "../../theme/ThemeContext";
+
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+
+/* ======================================================
+   TYPES
+====================================================== */
+
+type FinancialYear = string;
+
+type ReceiptItem = {
+  name: string;
+  price: number;
+  category?: string | null;
+};
 
 type Expense = {
   id: string;
@@ -32,15 +63,22 @@ type CategorySummary = {
   count: number;
 };
 
-const financialYears: FinancialYear[] = [
-  "2024-2025",
-  "2025-2026",
-  "2026-2027",
-];
+/* ======================================================
+   NORMALISE FINANCIAL YEAR
+====================================================== */
 
-// ------------------------------------------
-// Financial year helper
-// ------------------------------------------
+const normaliseFinancialYear = (
+  year: string | null | undefined
+): string => {
+  return String(year ?? "")
+    .replace(/[–—]/g, "-")
+    .trim();
+};
+
+/* ======================================================
+   FINANCIAL YEAR HELPER
+====================================================== */
+
 const getFinancialYear = (
   dateString: string | null
 ): FinancialYear | null => {
@@ -50,889 +88,2911 @@ const getFinancialYear = (
 
   let date: Date | null = null;
 
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split("-").map(Number);
-    date = new Date(year, month - 1, day);
+  /* ------------------------------------------
+     YYYY-MM-DD
+
+     Example:
+     2025-08-26
+  ------------------------------------------ */
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      dateString
+    )
+  ) {
+    const [
+      year,
+      month,
+      day,
+    ] = dateString
+      .split("-")
+      .map(Number);
+
+    date = new Date(
+      year,
+      month - 1,
+      day
+    );
   }
 
-  // DD/MM/YYYY
-  else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateString)) {
-    const [day, month, year] = dateString.split("/").map(Number);
-    date = new Date(year, month - 1, day);
+  /* ------------------------------------------
+     Slash dates
+
+     Australian:
+     26/08/2025
+
+     American:
+     02/19/2024
+  ------------------------------------------ */
+
+  else if (
+    /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(
+      dateString
+    )
+  ) {
+    const [
+      first,
+      second,
+      year,
+    ] = dateString
+      .split("/")
+      .map(Number);
+
+    /*
+      02/19/2024
+
+      second = 19
+      therefore this is MM/DD/YYYY
+    */
+
+    if (second > 12) {
+      date = new Date(
+        year,
+        first - 1,
+        second
+      );
+    }
+
+    /*
+      26/08/2025
+
+      first = 26
+      therefore this is DD/MM/YYYY
+    */
+
+    else if (first > 12) {
+      date = new Date(
+        year,
+        second - 1,
+        first
+      );
+    }
+
+    /*
+      Ambiguous dates are treated
+      as Australian DD/MM/YYYY.
+    */
+
+    else {
+      date = new Date(
+        year,
+        second - 1,
+        first
+      );
+    }
   }
 
-  // DD-MM-YYYY
-  else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateString)) {
-    const [day, month, year] = dateString.split("-").map(Number);
-    date = new Date(year, month - 1, day);
+  /* ------------------------------------------
+     Hyphen dates
+
+     26-08-2025
+     02-19-2024
+  ------------------------------------------ */
+
+  else if (
+    /^\d{1,2}-\d{1,2}-\d{4}$/.test(
+      dateString
+    )
+  ) {
+    const [
+      first,
+      second,
+      year,
+    ] = dateString
+      .split("-")
+      .map(Number);
+
+    if (second > 12) {
+      date = new Date(
+        year,
+        first - 1,
+        second
+      );
+    } else if (first > 12) {
+      date = new Date(
+        year,
+        second - 1,
+        first
+      );
+    } else {
+      date = new Date(
+        year,
+        second - 1,
+        first
+      );
+    }
   }
 
-  // Other recognised date formats
+  /* ------------------------------------------
+     Other formats
+  ------------------------------------------ */
+
   else {
-    const parsed = new Date(dateString);
+    const parsed =
+      new Date(dateString);
 
-    if (!Number.isNaN(parsed.getTime())) {
+    if (
+      !Number.isNaN(
+        parsed.getTime()
+      )
+    ) {
       date = parsed;
     }
   }
 
-  if (!date || Number.isNaN(date.getTime())) {
+  if (
+    !date ||
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return null;
   }
 
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  const year =
+    date.getFullYear();
 
-  // Australian financial year:
-  // 1 July - 30 June
+  const month =
+    date.getMonth() + 1;
+
+  /*
+    Australian financial year:
+    July -> June
+  */
+
   if (month >= 7) {
-    return `${year}-${year + 1}` as FinancialYear;
+    return `${year}-${year + 1}`;
   }
 
-  return `${year - 1}-${year}` as FinancialYear;
+  return `${year - 1}-${year}`;
 };
 
-// ------------------------------------------
-// Date display helper
-// ------------------------------------------
-const formatDate = (dateString: string | null): string => {
+/* ======================================================
+   DATE DISPLAY
+====================================================== */
+
+const formatDate = (
+  dateString: string | null
+): string => {
   if (!dateString) {
     return "Unknown date";
-  }
-
-  // Convert ISO dates such as 2026-08-05
-  // into 2026-08-05 to match the design
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    return dateString;
   }
 
   return dateString;
 };
 
+/* ======================================================
+   TEXT NORMALISATION
+====================================================== */
+
+const normaliseText = (
+  value: any
+): string => {
+  return String(
+    value ?? ""
+  )
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+/* ======================================================
+   AMOUNT NORMALISATION
+====================================================== */
+
+const normaliseAmount = (
+  value: any
+): string => {
+  const number =
+    Number(value ?? 0);
+
+  if (
+    Number.isNaN(number)
+  ) {
+    return "0.00";
+  }
+
+  return number.toFixed(2);
+};
+
+/* ======================================================
+   DUPLICATE KEY
+====================================================== */
+
+/*
+  A receipt is considered a duplicate when
+  the following information matches:
+
+  - Store
+  - Date
+  - Total
+  - Item names
+  - Item prices
+  - Item categories
+
+  IMPORTANT:
+
+  This function DOES NOT delete anything.
+
+  It is only used by Summary to avoid showing
+  the same receipt multiple times.
+*/
+
+const getDuplicateKey = (
+  receipt: SavedReceipt
+): string => {
+  const store =
+    normaliseText(
+      receipt.store
+    );
+
+  const date =
+    normaliseText(
+      receipt.date
+    );
+
+  const total =
+    normaliseAmount(
+      receipt.total
+    );
+
+  const items =
+    Array.isArray(
+      receipt.items
+    )
+      ? receipt.items
+          .map(
+            (item) =>
+              `${normaliseText(
+                item.name
+              )}|${normaliseAmount(
+                item.price
+              )}|${normaliseText(
+                item.category
+              )}`
+          )
+          .sort()
+          .join("||")
+      : "";
+
+  return [
+    store,
+    date,
+    total,
+    items,
+  ].join("###");
+};
+
+/* ======================================================
+   MAIN COMPONENT
+====================================================== */
+
 export default function Summary() {
-  const [selectedYear, setSelectedYear] =
-    useState<FinancialYear>("2026-2027");
+  const { colors } =
+    useTheme();
 
-  const [receipts, setReceipts] = useState<SavedReceipt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [yearModalVisible, setYearModalVisible] = useState(false);
+  const styles =
+    createStyles(colors);
 
-  // ------------------------------------------
-  // Load receipts from Firebase
-  // ------------------------------------------
-  const loadReceipts = async () => {
-    try {
-      setLoading(true);
+  /* ====================================================
+     FINANCIAL YEARS
+  ==================================================== */
 
-      const savedReceipts = await getReceipts();
+  const [
+    financialYears,
+    setFinancialYears,
+  ] = useState<
+    FinancialYear[]
+  >([]);
 
-      setReceipts(savedReceipts);
-    } catch (error) {
-      console.error("Failed to load summary receipts:", error);
-      setReceipts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [
+    selectedYear,
+    setSelectedYear,
+  ] = useState<FinancialYear>(
+    "2026-2027"
+  );
+
+  /* ====================================================
+     RECEIPTS
+  ==================================================== */
+
+  const [
+    receipts,
+    setReceipts,
+  ] = useState<
+    SavedReceipt[]
+  >([]);
+
+  /* ====================================================
+     LOADING
+  ==================================================== */
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  /* ====================================================
+     FINANCIAL YEAR MODAL
+  ==================================================== */
+
+  const [
+    yearModalVisible,
+    setYearModalVisible,
+  ] = useState(false);
+
+  /* ====================================================
+     RECEIPT DETAILS MODAL
+  ==================================================== */
+
+  const [
+    selectedReceipt,
+    setSelectedReceipt,
+  ] = useState<
+    SavedReceipt | null
+  >(null);
+
+  const [
+    receiptModalVisible,
+    setReceiptModalVisible,
+  ] = useState(false);
+
+  /* ====================================================
+     LOAD SUMMARY
+  ==================================================== */
+
+  const loadSummary =
+    async () => {
+      try {
+        setLoading(true);
+
+        /* --------------------------------------------
+           LOAD RECEIPTS
+        -------------------------------------------- */
+
+        const savedReceipts =
+          await getReceipts();
+
+        setReceipts(
+          savedReceipts
+        );
+
+        console.log(
+          "SUMMARY RECEIPTS:",
+          savedReceipts
+        );
+
+        /* --------------------------------------------
+           LOAD FINANCIAL YEARS
+        -------------------------------------------- */
+
+        const settings =
+          await getFinancialYearSettings();
+
+        const loadedYears =
+          (
+            settings.financialYears ??
+            []
+          )
+            .map(
+              (year) =>
+                normaliseFinancialYear(
+                  year
+                )
+            )
+            .filter(
+              Boolean
+            );
+
+        const uniqueYears =
+          [
+            ...new Set(
+              loadedYears
+            ),
+          ];
+
+        setFinancialYears(
+          uniqueYears
+        );
+
+        console.log(
+          "SUMMARY FINANCIAL YEARS:",
+          uniqueYears
+        );
+
+        /* --------------------------------------------
+           SET ACTIVE YEAR
+        -------------------------------------------- */
+
+        const activeYear =
+          normaliseFinancialYear(
+            settings.activeFinancialYear
+          );
+
+        if (
+          activeYear &&
+          uniqueYears.includes(
+            activeYear
+          )
+        ) {
+          setSelectedYear(
+            activeYear
+          );
+        } else if (
+          uniqueYears.length >
+          0
+        ) {
+          setSelectedYear(
+            uniqueYears[0]
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load Summary:",
+          error
+        );
+
+        setReceipts([]);
+
+        Alert.alert(
+          "Summary Error",
+          "Unable to load your summary."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* ====================================================
+     REFRESH WHEN SCREEN OPENS
+  ==================================================== */
 
   useFocusEffect(
     useCallback(() => {
-      loadReceipts();
+      loadSummary();
     }, [])
   );
 
-  // ------------------------------------------
-  // Filter receipts by financial year
-  // ------------------------------------------
-  const filteredReceipts = useMemo(() => {
-    return receipts.filter((receipt) => {
-      const dateToUse = receipt.date ?? receipt.createdAt;
+  /* ====================================================
+     DUPLICATE DETECTION BY FINANCIAL YEAR
+  ==================================================== */
 
-      return getFinancialYear(dateToUse) === selectedYear;
-    });
-  }, [receipts, selectedYear]);
+  const duplicateInfo =
+    useMemo(() => {
+      /*
+        We keep a separate Set for every
+        financial year.
 
-  // ------------------------------------------
-  // Total expenses
-  // ------------------------------------------
-  const totalExpenses = useMemo(() => {
-    return filteredReceipts.reduce((total, receipt) => {
-      if (
-        receipt.total !== null &&
-        receipt.total !== undefined &&
-        !Number.isNaN(receipt.total)
-      ) {
-        return total + receipt.total;
-      }
+        Example:
 
-      const itemTotal = receipt.items.reduce(
-        (sum, item) => sum + item.price,
-        0
+        2025-2026 -> Set of receipts
+        2026-2027 -> Set of receipts
+        2027-2028 -> Set of receipts
+
+        This means duplicate counts are
+        independent for each year.
+      */
+
+      const seenByYear: Record<
+        string,
+        Set<string>
+      > = {};
+
+      const duplicateCounts: Record<
+        string,
+        number
+      > = {};
+
+      const uniqueReceipts: SavedReceipt[] =
+        [];
+
+      receipts.forEach(
+        (receipt) => {
+          const dateToUse =
+            receipt.date ??
+            receipt.createdAt;
+
+          const receiptYear =
+            normaliseFinancialYear(
+              getFinancialYear(
+                dateToUse
+              )
+            );
+
+          /*
+            If the receipt has no valid
+            financial year, don't attempt
+            duplicate grouping.
+          */
+
+          if (!receiptYear) {
+            uniqueReceipts.push(
+              receipt
+            );
+
+            return;
+          }
+
+          /*
+            Create a separate Set
+            for this financial year.
+          */
+
+          if (
+            !seenByYear[
+              receiptYear
+            ]
+          ) {
+            seenByYear[
+              receiptYear
+            ] = new Set();
+          }
+
+          const duplicateKey =
+            getDuplicateKey(
+              receipt
+            );
+
+          /*
+            Duplicate found inside
+            this specific financial year.
+          */
+
+          if (
+            seenByYear[
+              receiptYear
+            ].has(
+              duplicateKey
+            )
+          ) {
+            duplicateCounts[
+              receiptYear
+            ] =
+              (
+                duplicateCounts[
+                  receiptYear
+                ] ?? 0
+              ) + 1;
+
+            return;
+          }
+
+          /*
+            First copy of the receipt.
+          */
+
+          seenByYear[
+            receiptYear
+          ].add(
+            duplicateKey
+          );
+
+          uniqueReceipts.push(
+            receipt
+          );
+        }
       );
 
-      return total + itemTotal;
-    }, 0);
-  }, [filteredReceipts]);
+      return {
+        uniqueReceipts,
+        duplicateCounts,
+      };
+    }, [receipts]);
 
-  // ------------------------------------------
-  // Receipt count
-  // ------------------------------------------
-  const receiptCount = filteredReceipts.length;
+  /* ====================================================
+     UNIQUE RECEIPTS
+  ==================================================== */
 
-  // ------------------------------------------
-  // Convert receipt items into expenses
-  // ------------------------------------------
-  const expenses = useMemo<Expense[]>(() => {
-    const result: Expense[] = [];
+  const uniqueReceipts =
+    duplicateInfo.uniqueReceipts;
 
-    filteredReceipts.forEach((receipt) => {
-      receipt.items.forEach((item, itemIndex) => {
-        result.push({
-          id: `${receipt.id}-${itemIndex}`,
-          name: item.name,
-          merchant: receipt.store ?? "Unknown",
-          date: receipt.date ?? receipt.createdAt,
-          category: item.category || "Other",
-          amount: item.price,
-        });
-      });
-    });
+  /* ====================================================
+     DUPLICATE COUNT FOR CURRENT YEAR
+  ==================================================== */
 
-    return result;
-  }, [filteredReceipts]);
+  const duplicateCountForSelectedYear =
+    duplicateInfo
+      .duplicateCounts[
+      normaliseFinancialYear(
+        selectedYear
+      )
+    ] ?? 0;
 
-  // ------------------------------------------
-  // Category summaries
-  // ------------------------------------------
-  const categorySummaries = useMemo<CategorySummary[]>(() => {
-    const categoryMap: Record<
-      string,
-      {
-        amount: number;
-        count: number;
-      }
-    > = {};
+  /* ====================================================
+     FILTER RECEIPTS BY FINANCIAL YEAR
+  ==================================================== */
 
-    expenses.forEach((expense) => {
-      if (!categoryMap[expense.category]) {
-        categoryMap[expense.category] = {
-          amount: 0,
-          count: 0,
-        };
-      }
+  const filteredReceipts =
+    useMemo(() => {
+      const normalisedSelectedYear =
+        normaliseFinancialYear(
+          selectedYear
+        );
 
-      categoryMap[expense.category].amount += expense.amount;
-      categoryMap[expense.category].count += 1;
-    });
+      return uniqueReceipts.filter(
+        (receipt) => {
+          const dateToUse =
+            receipt.date ??
+            receipt.createdAt;
 
-    const categoryTotal = Object.values(categoryMap).reduce(
-      (sum, category) => sum + category.amount,
-      0
+          const receiptYear =
+            normaliseFinancialYear(
+              getFinancialYear(
+                dateToUse
+              )
+            );
+
+          const matches =
+            receiptYear ===
+            normalisedSelectedYear;
+
+          console.log(
+            "SUMMARY CHECK:",
+            {
+              store:
+                receipt.store,
+
+              date:
+                dateToUse,
+
+              receiptYear,
+
+              selectedYear:
+                normalisedSelectedYear,
+
+              matches,
+            }
+          );
+
+          return matches;
+        }
+      );
+    }, [
+      uniqueReceipts,
+      selectedYear,
+    ]);
+
+  /* ====================================================
+     TOTAL EXPENSES
+  ==================================================== */
+
+  const totalExpenses =
+    useMemo(() => {
+      return filteredReceipts.reduce(
+        (
+          total,
+          receipt
+        ) => {
+          if (
+            receipt.total !==
+              null &&
+            receipt.total !==
+              undefined &&
+            !Number.isNaN(
+              receipt.total
+            )
+          ) {
+            return (
+              total +
+              receipt.total
+            );
+          }
+
+          const itemTotal =
+            receipt.items.reduce(
+              (
+                sum,
+                item
+              ) =>
+                sum +
+                item.price,
+              0
+            );
+
+          return (
+            total +
+            itemTotal
+          );
+        },
+        0
+      );
+    }, [
+      filteredReceipts,
+    ]);
+
+  /* ====================================================
+     RECEIPT COUNT
+  ==================================================== */
+
+  const receiptCount =
+    filteredReceipts.length;
+
+  /* ====================================================
+     EXPENSE ITEMS
+  ==================================================== */
+
+  const expenses =
+    useMemo<Expense[]>(
+      () => {
+        const result: Expense[] =
+          [];
+
+        filteredReceipts.forEach(
+          (receipt) => {
+            receipt.items.forEach(
+              (
+                item,
+                itemIndex
+              ) => {
+                result.push({
+                  id: `${receipt.id}-${itemIndex}`,
+
+                  name:
+                    item.name,
+
+                  merchant:
+                    receipt.store ??
+                    "Unknown",
+
+                  date:
+                    receipt.date ??
+                    "",
+
+                  category:
+                    item.category ||
+                    "Other",
+
+                  amount:
+                    item.price,
+                });
+              }
+            );
+          }
+        );
+
+        return result;
+      },
+      [filteredReceipts]
     );
 
-    return Object.entries(categoryMap)
-      .map(([name, data]) => ({
-        name,
-        amount: data.amount,
-        count: data.count,
-        percentage:
-          categoryTotal > 0
-            ? Math.round((data.amount / categoryTotal) * 100)
-            : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount);
-  }, [expenses]);
+  /* ====================================================
+     CATEGORY SUMMARY
+  ==================================================== */
 
-  // ------------------------------------------
-  // Export button
-  // ------------------------------------------
-  const handleExportCSV = () => {
-    Alert.alert(
-      "Export CSV",
-      "CSV export is ready to be connected to the final export function."
-    );
-  };
+  const categorySummaries =
+    useMemo<
+      CategorySummary[]
+    >(() => {
+      const categoryMap: Record<
+        string,
+        {
+          amount: number;
+          count: number;
+        }
+      > = {};
 
-  // ------------------------------------------
-  // Loading
-  // ------------------------------------------
+      expenses.forEach(
+        (expense) => {
+          if (
+            !categoryMap[
+              expense.category
+            ]
+          ) {
+            categoryMap[
+              expense.category
+            ] = {
+              amount: 0,
+              count: 0,
+            };
+          }
+
+          categoryMap[
+            expense.category
+          ].amount +=
+            expense.amount;
+
+          categoryMap[
+            expense.category
+          ].count += 1;
+        }
+      );
+
+      const categoryTotal =
+        Object.values(
+          categoryMap
+        ).reduce(
+          (
+            sum,
+            category
+          ) =>
+            sum +
+            category.amount,
+          0
+        );
+
+      return Object.entries(
+        categoryMap
+      )
+        .map(
+          ([
+            name,
+            data,
+          ]) => ({
+            name,
+
+            amount:
+              data.amount,
+
+            count:
+              data.count,
+
+            percentage:
+              categoryTotal >
+              0
+                ? Math.round(
+                    (data.amount /
+                      categoryTotal) *
+                      100
+                  )
+                : 0,
+          })
+        )
+        .sort(
+          (a, b) =>
+            b.amount -
+            a.amount
+        );
+    }, [expenses]);
+
+  /* ====================================================
+     OPEN RECEIPT DETAILS
+  ==================================================== */
+
+  const openReceipt =
+    (
+      receipt: SavedReceipt
+    ) => {
+      setSelectedReceipt(
+        receipt
+      );
+
+      setReceiptModalVisible(
+        true
+      );
+    };
+
+  /* ====================================================
+     EXPORT CSV
+  ==================================================== */
+
+  const handleExportCSV =
+    async () => {
+      try {
+        if (
+          filteredReceipts.length ===
+          0
+        ) {
+          Alert.alert(
+            "Export CSV",
+            "There are no receipts to export for this financial year."
+          );
+
+          return;
+        }
+
+        const escapeCSV =
+          (
+            value:
+              | string
+              | number
+              | null
+              | undefined
+          ) => {
+            const text =
+              String(
+                value ?? ""
+              );
+
+            return `"${text.replace(
+              /"/g,
+              '""'
+            )}"`;
+          };
+
+        const rows: string[] =
+          [
+            [
+              "Receipt ID",
+              "Store",
+              "Date",
+              "Financial Year",
+              "Receipt Total",
+              "GST",
+              "Item",
+              "Category",
+              "Item Price",
+            ]
+              .map(
+                escapeCSV
+              )
+              .join(","),
+          ];
+
+        filteredReceipts.forEach(
+          (receipt) => {
+            receipt.items.forEach(
+              (item) => {
+                rows.push(
+                  [
+                    receipt.id,
+
+                    receipt.store ??
+                      "Unknown",
+
+                    formatDate(
+                      receipt.date ??
+                        receipt.createdAt
+                    ),
+
+                    getFinancialYear(
+                      receipt.date ??
+                        receipt.createdAt
+                    ) ??
+                      "Unknown",
+
+                    (
+                      receipt.total ??
+                      0
+                    ).toFixed(2),
+
+                    (
+                      receipt.gst ??
+                      0
+                    ).toFixed(2),
+
+                    item.name,
+
+                    item.category ||
+                      "Other",
+
+                    item.price.toFixed(
+                      2
+                    ),
+                  ]
+                    .map(
+                      escapeCSV
+                    )
+                    .join(",")
+                );
+              }
+            );
+          }
+        );
+
+        const csvContent =
+          rows.join(
+            "\n"
+          );
+
+        /* ------------------------------------------
+           WEB
+        ------------------------------------------ */
+
+        if (
+          Platform.OS ===
+          "web"
+        ) {
+          const blob =
+            new Blob(
+              [csvContent],
+              {
+                type:
+                  "text/csv;charset=utf-8;",
+              }
+            );
+
+          const url =
+            URL.createObjectURL(
+              blob
+            );
+
+          const link =
+            document.createElement(
+              "a"
+            );
+
+          link.href = url;
+
+          link.download =
+            `expense-summary-${selectedYear}.csv`;
+
+          document.body.appendChild(
+            link
+          );
+
+          link.click();
+
+          document.body.removeChild(
+            link
+          );
+
+          URL.revokeObjectURL(
+            url
+          );
+
+          return;
+        }
+
+        /* ------------------------------------------
+           MOBILE
+        ------------------------------------------ */
+
+        const fileName =
+          `expense-summary-${selectedYear}.csv`;
+
+        const fileUri =
+          `${FileSystem.cacheDirectory}${fileName}`;
+
+        await FileSystem.writeAsStringAsync(
+          fileUri,
+          csvContent,
+          {
+            encoding:
+              FileSystem
+                .EncodingType
+                .UTF8,
+          }
+        );
+
+        const sharingAvailable =
+          await Sharing.isAvailableAsync();
+
+        if (
+          !sharingAvailable
+        ) {
+          Alert.alert(
+            "Export CSV",
+            "Sharing is not available on this device."
+          );
+
+          return;
+        }
+
+        await Sharing.shareAsync(
+          fileUri,
+          {
+            mimeType:
+              "text/csv",
+
+            dialogTitle:
+              `Export ${selectedYear} summary`,
+
+            UTI:
+              "public.comma-separated-values-text",
+          }
+        );
+      } catch (error) {
+        console.error(
+          "CSV export error:",
+          error
+        );
+
+        Alert.alert(
+          "Export CSV",
+          "Something went wrong while creating the CSV file."
+        );
+      }
+    };
+
+  /* ====================================================
+     LOADING SCREEN
+  ==================================================== */
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <SafeAreaView
+        style={
+          styles.loadingContainer
+        }
+      >
+        <ActivityIndicator
+          size="large"
+          color={
+            colors.primary
+          }
+        />
 
-        <Text style={styles.loadingText}>
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
           Loading summary...
         </Text>
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* -------------------------------------- */}
-      {/* Header */}
-      {/* -------------------------------------- */}
+  /* ====================================================
+     MAIN UI
+  ==================================================== */
 
-      <View style={styles.header}>
+  return (
+    <SafeAreaView
+      style={
+        styles.container
+      }
+      edges={["top"]}
+    >
+      {/* ==================================================
+          HEADER
+      ================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
         <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
+          style={
+            styles.backButton
+          }
+          onPress={() =>
+            router.back()
+          }
         >
           <Ionicons
             name="chevron-back"
             size={20}
-            color="#172033"
+            color={
+              colors.text
+            }
           />
         </Pressable>
 
-        <Text style={styles.headerTitle}>
+        <Text
+          style={
+            styles.headerTitle
+          }
+        >
           Financial summary
         </Text>
 
         <Pressable
-          style={styles.exportButton}
-          onPress={handleExportCSV}
+          style={
+            styles.exportButton
+          }
+          onPress={
+            handleExportCSV
+          }
         >
-          <Text style={styles.exportText}>
+          <Text
+            style={
+              styles.exportText
+            }
+          >
             Export CSV
           </Text>
         </Pressable>
       </View>
 
+      {/* ==================================================
+          CONTENT
+      ================================================== */}
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.scrollContent
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
-        {/* -------------------------------------- */}
-        {/* Financial Year */}
-        {/* -------------------------------------- */}
+        {/* ==================================================
+            FINANCIAL YEAR SELECTOR
+        ================================================== */}
 
         <Pressable
-          style={styles.yearSelector}
-          onPress={() => setYearModalVisible(true)}
+          style={
+            styles.yearSelector
+          }
+          onPress={() =>
+            setYearModalVisible(
+              true
+            )
+          }
         >
-          <Text style={styles.yearText}>
-            {selectedYear}
+          <Text
+            style={
+              styles.yearText
+            }
+          >
+            {selectedYear ||
+              "Select financial year"}
           </Text>
 
           <Ionicons
             name="chevron-down"
             size={19}
-            color="#172033"
+            color={
+              colors.text
+            }
           />
         </Pressable>
 
-        {/* -------------------------------------- */}
-        {/* Total + Receipts */}
-        {/* -------------------------------------- */}
+        {/* ==================================================
+            DUPLICATE NOTICE
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>
+            IMPORTANT:
+            This count belongs ONLY to the
+            currently selected financial year.
+        ================================================== */}
+
+        {duplicateCountForSelectedYear >
+          0 && (
+          <View
+            style={
+              styles.duplicateNotice
+            }
+          >
+            <Ionicons
+              name="copy-outline"
+              size={17}
+              color={
+                colors.primary
+              }
+            />
+
+            <Text
+              style={
+                styles.duplicateNoticeText
+              }
+            >
+              {
+                duplicateCountForSelectedYear
+              }{" "}
+              duplicate{" "}
+              {duplicateCountForSelectedYear ===
+              1
+                ? "record"
+                : "records"}{" "}
+              hidden in{" "}
+              {selectedYear}
+            </Text>
+          </View>
+        )}
+
+        {/* ==================================================
+            STATISTICS
+        ================================================== */}
+
+        <View
+          style={
+            styles.statsRow
+          }
+        >
+          <View
+            style={
+              styles.statCard
+            }
+          >
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
               Total expenses
             </Text>
 
-            <Text style={styles.statAmount}>
-              ${totalExpenses.toFixed(2)}
+            <Text
+              style={
+                styles.statAmount
+              }
+            >
+              $
+              {totalExpenses.toFixed(
+                2
+              )}
             </Text>
           </View>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>
+          <View
+            style={
+              styles.statCard
+            }
+          >
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
               Total receipts
             </Text>
 
-            <Text style={styles.statNumber}>
+            <Text
+              style={
+                styles.statNumber
+              }
+            >
               {receiptCount}
             </Text>
           </View>
         </View>
 
-        {/* -------------------------------------- */}
-        {/* Category Breakdown */}
-        {/* -------------------------------------- */}
+        {/* ==================================================
+            CATEGORY BREAKDOWN
+        ================================================== */}
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={
+            styles.sectionHeader
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Category breakdown
           </Text>
 
-          <Text style={styles.sectionYear}>
+          <Text
+            style={
+              styles.sectionYear
+            }
+          >
             {selectedYear}
           </Text>
         </View>
 
-        <View style={styles.categoryList}>
-          {categorySummaries.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>
-                No expenses in this financial year.
+        <View
+          style={
+            styles.categoryList
+          }
+        >
+          {categorySummaries.length ===
+          0 ? (
+            <View
+              style={
+                styles.emptyState
+              }
+            >
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                No expenses in
+                this financial
+                year.
               </Text>
             </View>
           ) : (
-            categorySummaries.map((category, index) => (
-              <View
-                key={category.name}
-                style={[
-                  styles.categoryRow,
-                  index !== categorySummaries.length - 1 &&
-                    styles.categoryBorder,
-                ]}
-              >
-                <View>
-                  <Text style={styles.categoryName}>
-                    {category.name}
-                  </Text>
+            categorySummaries.map(
+              (
+                category,
+                index
+              ) => (
+                <View
+                  key={
+                    category.name
+                  }
+                  style={[
+                    styles.categoryRow,
+                    index !==
+                      categorySummaries.length -
+                        1 &&
+                      styles.categoryBorder,
+                  ]}
+                >
+                  <View>
+                    <Text
+                      style={
+                        styles.categoryName
+                      }
+                    >
+                      {
+                        category.name
+                      }
+                    </Text>
 
-                  <Text style={styles.itemCount}>
-                    {category.count}{" "}
-                    {category.count === 1
-                      ? "item"
-                      : "items"}
+                    <Text
+                      style={
+                        styles.itemCount
+                      }
+                    >
+                      {
+                        category.count
+                      }{" "}
+                      {category.count ===
+                      1
+                        ? "item"
+                        : "items"}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.categoryAmount
+                    }
+                  >
+                    $
+                    {category.amount.toFixed(
+                      2
+                    )}
                   </Text>
                 </View>
-
-                <Text style={styles.categoryAmount}>
-                  ${category.amount.toFixed(2)}
-                </Text>
-              </View>
-            ))
+              )
+            )
           )}
         </View>
 
-        {/* -------------------------------------- */}
-        {/* Receipts Included in Export */}
-        {/* -------------------------------------- */}
+        {/* ==================================================
+            RECEIPTS
+        ================================================== */}
 
-        <Text style={styles.receiptsTitle}>
-          Receipts included in export
+        <Text
+          style={
+            styles.receiptsTitle
+          }
+        >
+          Receipts included in
+          export
         </Text>
 
-        {filteredReceipts.length === 0 ? (
-          <View style={styles.emptyReceiptCard}>
-            <Text style={styles.emptyText}>
-              No receipts for this financial year.
+        {filteredReceipts.length ===
+        0 ? (
+          <View
+            style={
+              styles.emptyReceiptCard
+            }
+          >
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No receipts for
+              this financial
+              year.
             </Text>
           </View>
         ) : (
-          filteredReceipts.map((receipt) => (
-            <View
-              key={receipt.id}
-              style={styles.receiptCard}
-            >
-              {/* Receipt header */}
+          filteredReceipts.map(
+            (receipt) => (
+              <Pressable
+                key={
+                  receipt.id
+                }
+                style={
+                  styles.receiptCard
+                }
+                onPress={() =>
+                  openReceipt(
+                    receipt
+                  )
+                }
+              >
+                {/* ------------------------------------------
+                    RECEIPT HEADER
+                ------------------------------------------ */}
 
-              <View style={styles.receiptHeader}>
-                <View style={styles.storeIcon}>
-                  <Text style={styles.storeIconText}>
-                    {(receipt.store ?? "R")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </Text>
+                <View
+                  style={
+                    styles.receiptHeader
+                  }
+                >
+                  <View
+                    style={
+                      styles.storeIcon
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.storeIconText
+                      }
+                    >
+                      {(
+                        receipt.store ??
+                        "R"
+                      )
+                        .charAt(
+                          0
+                        )
+                        .toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.storeInfo
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.storeName
+                      }
+                    >
+                      {receipt.store ??
+                        "Unknown"}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.receiptDate
+                      }
+                    >
+                      {formatDate(
+                        receipt.date ??
+                          receipt.createdAt
+                      )}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.receiptTotalContainer
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.receiptTotal
+                      }
+                    >
+                      $
+                      {(
+                        receipt.total ??
+                        0
+                      ).toFixed(
+                        2
+                      )}
+                    </Text>
+
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={
+                        colors.secondaryText
+                      }
+                    />
+                  </View>
                 </View>
 
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName}>
-                    {receipt.store ?? "Unknown"}
+                {/* ------------------------------------------
+                    DIVIDER
+                ------------------------------------------ */}
+
+                <View
+                  style={
+                    styles.receiptDivider
+                  }
+                />
+
+                {/* ------------------------------------------
+                    ITEMS
+                ------------------------------------------ */}
+
+                {receipt.items.map(
+                  (
+                    item,
+                    itemIndex
+                  ) => (
+                    <View
+                      key={`${receipt.id}-${itemIndex}`}
+                      style={[
+                        styles.receiptItem,
+                        itemIndex !==
+                          receipt.items.length -
+                            1 &&
+                          styles.itemBorder,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.itemLeft
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.itemName
+                          }
+                          numberOfLines={
+                            1
+                          }
+                        >
+                          {
+                            item.name
+                          }
+                        </Text>
+
+                        <View
+                          style={
+                            styles.categoryBadge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.categoryBadgeText
+                            }
+                          >
+                            {item.category ||
+                              "Other"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text
+                        style={
+                          styles.itemPrice
+                        }
+                      >
+                        $
+                        {item.price.toFixed(
+                          2
+                        )}
+                      </Text>
+                    </View>
+                  )
+                )}
+              </Pressable>
+            )
+          )
+        )}
+
+        <View
+          style={
+            styles.bottomSpace
+          }
+        />
+      </ScrollView>
+
+      {/* ==================================================
+          FINANCIAL YEAR MODAL
+      ================================================== */}
+
+      <Modal
+        visible={
+          yearModalVisible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setYearModalVisible(
+            false
+          )
+        }
+      >
+        <Pressable
+          style={
+            styles.modalOverlay
+          }
+          onPress={() =>
+            setYearModalVisible(
+              false
+            )
+          }
+        >
+          <Pressable
+            style={
+              styles.modalContent
+            }
+            onPress={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              Select financial year
+            </Text>
+
+            {financialYears.length ===
+            0 ? (
+              <Text
+                style={
+                  styles.emptyModalText
+                }
+              >
+                No financial years
+                have been created
+                yet.
+              </Text>
+            ) : (
+              financialYears.map(
+                (year) => (
+                  <Pressable
+                    key={
+                      year
+                    }
+                    style={[
+                      styles.yearOption,
+                      selectedYear ===
+                        year &&
+                        styles.selectedYearOption,
+                    ]}
+                    onPress={() => {
+                      setSelectedYear(
+                        year
+                      );
+
+                      setYearModalVisible(
+                        false
+                      );
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.yearOptionText,
+                        selectedYear ===
+                          year &&
+                          styles.selectedYearText,
+                      ]}
+                    >
+                      {year}
+                    </Text>
+
+                    {selectedYear ===
+                      year && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={21}
+                        color={
+                          colors.primary
+                        }
+                      />
+                    )}
+                  </Pressable>
+                )
+              )
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ==================================================
+          RECEIPT DETAILS MODAL
+      ================================================== */}
+
+      <Modal
+        visible={
+          receiptModalVisible
+        }
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setReceiptModalVisible(
+            false
+          )
+        }
+      >
+        <View
+          style={
+            styles.detailsOverlay
+          }
+        >
+          <View
+            style={
+              styles.detailsModal
+            }
+          >
+            {/* ------------------------------------------
+                DETAILS HEADER
+            ------------------------------------------ */}
+
+            <View
+              style={
+                styles.detailsHeader
+              }
+            >
+              <Text
+                style={
+                  styles.detailsTitle
+                }
+              >
+                Receipt Details
+              </Text>
+
+              <Pressable
+                style={
+                  styles.closeButton
+                }
+                onPress={() =>
+                  setReceiptModalVisible(
+                    false
+                  )
+                }
+              >
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={
+                    colors.text
+                  }
+                />
+              </Pressable>
+            </View>
+
+            {selectedReceipt && (
+              <ScrollView
+                showsVerticalScrollIndicator={
+                  false
+                }
+              >
+                {/* ------------------------------------------
+                    STORE
+                ------------------------------------------ */}
+
+                <View
+                  style={
+                    styles.detailsStoreRow
+                  }
+                >
+                  <View
+                    style={
+                      styles.detailsStoreIcon
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailsStoreIconText
+                      }
+                    >
+                      {(
+                        selectedReceipt.store ??
+                        "R"
+                      )
+                        .charAt(
+                          0
+                        )
+                        .toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailsStoreInfo
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailsStoreName
+                      }
+                    >
+                      {selectedReceipt.store ??
+                        "Unknown store"}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailsDate
+                      }
+                    >
+                      {formatDate(
+                        selectedReceipt.date ??
+                          selectedReceipt.createdAt
+                      )}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* ------------------------------------------
+                    RECEIPT INFORMATION
+                ------------------------------------------ */}
+
+                <View
+                  style={
+                    styles.detailsInfoCard
+                  }
+                >
+                  <View
+                    style={
+                      styles.detailsInfoRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailsLabel
+                      }
+                    >
+                      Financial year
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailsValue
+                      }
+                    >
+                      {getFinancialYear(
+                        selectedReceipt.date ??
+                          selectedReceipt.createdAt
+                      ) ??
+                        "Unknown"}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.detailsInfoRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailsLabel
+                      }
+                    >
+                      Date
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailsValue
+                      }
+                    >
+                      {formatDate(
+                        selectedReceipt.date
+                      )}
+                    </Text>
+                  </View>
+
+                  {selectedReceipt.time && (
+                    <View
+                      style={
+                        styles.detailsInfoRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.detailsLabel
+                        }
+                      >
+                        Time
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailsValue
+                        }
+                      >
+                        {
+                          selectedReceipt.time
+                        }
+                      </Text>
+                    </View>
+                  )}
+
+                  <View
+                    style={
+                      styles.detailsInfoRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.detailsLabel
+                      }
+                    >
+                      GST
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.detailsValue
+                      }
+                    >
+                      $
+                      {(
+                        selectedReceipt.gst ??
+                        0
+                      ).toFixed(
+                        2
+                      )}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* ------------------------------------------
+                    ITEMS
+                ------------------------------------------ */}
+
+                <Text
+                  style={
+                    styles.detailsItemsTitle
+                  }
+                >
+                  Items
+                </Text>
+
+                <View
+                  style={
+                    styles.detailsItemsCard
+                  }
+                >
+                  {selectedReceipt.items.map(
+                    (
+                      item,
+                      index
+                    ) => (
+                      <View
+                        key={`${selectedReceipt.id}-details-${index}`}
+                        style={[
+                          styles.detailsItemRow,
+                          index !==
+                            selectedReceipt.items.length -
+                              1 &&
+                            styles.detailsItemBorder,
+                        ]}
+                      >
+                        <View
+                          style={
+                            styles.detailsItemLeft
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.detailsItemName
+                            }
+                          >
+                            {
+                              item.name
+                            }
+                          </Text>
+
+                          <View
+                            style={
+                              styles.detailsCategoryBadge
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.detailsCategoryText
+                              }
+                            >
+                              {item.category ||
+                                "Other"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text
+                          style={
+                            styles.detailsItemPrice
+                          }
+                        >
+                          $
+                          {item.price.toFixed(
+                            2
+                          )}
+                        </Text>
+                      </View>
+                    )
+                  )}
+                </View>
+
+                {/* ------------------------------------------
+                    TOTAL
+                ------------------------------------------ */}
+
+                <View
+                  style={
+                    styles.detailsTotalCard
+                  }
+                >
+                  <Text
+                    style={
+                      styles.detailsTotalLabel
+                    }
+                  >
+                    Total
                   </Text>
 
-                  <Text style={styles.receiptDate}>
-                    {formatDate(
-                      receipt.date ?? receipt.createdAt
+                  <Text
+                    style={
+                      styles.detailsTotalAmount
+                    }
+                  >
+                    $
+                    {(
+                      selectedReceipt.total ??
+                      selectedReceipt.items.reduce(
+                        (
+                          sum,
+                          item
+                        ) =>
+                          sum +
+                          item.price,
+                        0
+                      )
+                    ).toFixed(
+                      2
                     )}
                   </Text>
                 </View>
 
-                <Text style={styles.receiptTotal}>
-                  $
-                  {(receipt.total ?? 0).toFixed(2)}
-                </Text>
-              </View>
-
-              {/* Items */}
-
-              <View style={styles.receiptDivider} />
-
-              {receipt.items.map((item, itemIndex) => (
                 <View
-                  key={`${receipt.id}-${itemIndex}`}
-                  style={[
-                    styles.receiptItem,
-                    itemIndex !==
-                      receipt.items.length - 1 &&
-                      styles.itemBorder,
-                  ]}
-                >
-                  <View style={styles.itemLeft}>
-                    <Text style={styles.itemName}>
-                      {item.name}
-                    </Text>
-
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {item.category || "Other"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.itemPrice}>
-                    ${item.price.toFixed(2)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ))
-        )}
-
-        <View style={styles.bottomSpace} />
-      </ScrollView>
-
-      {/* -------------------------------------- */}
-      {/* Financial Year Modal */}
-      {/* -------------------------------------- */}
-
-      <Modal
-        visible={yearModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setYearModalVisible(false)
-        }
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setYearModalVisible(false)}
-        >
-          <Pressable
-            style={styles.modalContent}
-            onPress={(event) => event.stopPropagation()}
-          >
-            <Text style={styles.modalTitle}>
-              Select financial year
-            </Text>
-
-            {financialYears.map((year) => (
-              <Pressable
-                key={year}
-                style={[
-                  styles.yearOption,
-                  selectedYear === year &&
-                    styles.selectedYearOption,
-                ]}
-                onPress={() => {
-                  setSelectedYear(year);
-                  setYearModalVisible(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.yearOptionText,
-                    selectedYear === year &&
-                      styles.selectedYearText,
-                  ]}
-                >
-                  {year}
-                </Text>
-
-                {selectedYear === year && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={21}
-                    color="#2563EB"
-                  />
-                )}
-              </Pressable>
-            ))}
-          </Pressable>
-        </Pressable>
+                  style={
+                    styles.detailsBottomSpace
+                  }
+                />
+              </ScrollView>
+            )}
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
 }
 
-// ======================================================
-// STYLES
-// ======================================================
+/* ======================================================
+   STYLES
+====================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
+const createStyles = (
+  colors: ReturnType<
+    typeof useTheme
+  >["colors"]
+) =>
+  StyleSheet.create({
+    /* ------------------------------------------
+       MAIN
+    ------------------------------------------ */
 
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    container: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
 
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: "#64748B",
-  },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+    },
 
-  // ------------------------------------------
-  // Header
-  // ------------------------------------------
+    loadingText: {
+      marginTop: 10,
+      fontSize: 14,
+      color:
+        colors.secondaryText,
+    },
 
-  header: {
-    height: 64,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-  },
+    /* ------------------------------------------
+       HEADER
+    ------------------------------------------ */
 
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    header: {
+      height: 64,
+      paddingHorizontal: 20,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+      backgroundColor:
+        colors.background,
+    },
 
-  headerTitle: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor:
+        colors.softBackground,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+    },
 
-  exportButton: {
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+    headerTitle: {
+      flex: 1,
+      marginLeft: 12,
+      fontSize: 18,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  exportText: {
-    color: "#2563EB",
-    fontSize: 13,
-    fontWeight: "800",
-  },
+    exportButton: {
+      backgroundColor:
+        colors.primarySoft,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+    },
 
-  // ------------------------------------------
-  // Scroll
-  // ------------------------------------------
+    exportText: {
+      color:
+        colors.primary,
+      fontSize: 13,
+      fontWeight: "800",
+    },
 
-  scrollContent: {
-    padding: 22,
-    paddingBottom: 40,
-  },
+    /* ------------------------------------------
+       SCROLL
+    ------------------------------------------ */
 
-  // ------------------------------------------
-  // Financial year
-  // ------------------------------------------
+    scrollContent: {
+      padding: 22,
+      paddingBottom: 40,
+    },
 
-  yearSelector: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-  },
+    /* ------------------------------------------
+       YEAR SELECTOR
+    ------------------------------------------ */
 
-  yearText: {
-    fontSize: 14,
-    color: "#334155",
-    fontWeight: "500",
-  },
+    yearSelector: {
+      height: 48,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      backgroundColor:
+        colors.card,
+    },
 
-  // ------------------------------------------
-  // Stats
-  // ------------------------------------------
+    yearText: {
+      fontSize: 14,
+      color:
+        colors.text,
+      fontWeight: "500",
+    },
 
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
+    /* ------------------------------------------
+       DUPLICATE NOTICE
+    ------------------------------------------ */
 
-  statCard: {
-    flex: 1,
-    minHeight: 86,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 16,
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
+    duplicateNotice: {
+      marginTop: 10,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor:
+        colors.primarySoft,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 8,
+    },
 
-  statLabel: {
-    fontSize: 12,
-    color: "#172033",
-    marginBottom: 7,
-  },
+    duplicateNoticeText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color:
+        colors.primary,
+    },
 
-  statAmount: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    /* ------------------------------------------
+       STATS
+    ------------------------------------------ */
 
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    statsRow: {
+      flexDirection:
+        "row",
+      gap: 12,
+      marginTop: 12,
+    },
 
-  // ------------------------------------------
-  // Category breakdown
-  // ------------------------------------------
+    statCard: {
+      flex: 1,
+      minHeight: 86,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      padding: 16,
+      justifyContent:
+        "center",
+      backgroundColor:
+        colors.card,
+    },
 
-  sectionHeader: {
-    marginTop: 26,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    statLabel: {
+      fontSize: 12,
+      color:
+        colors.secondaryText,
+      marginBottom: 7,
+    },
 
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    statAmount: {
+      fontSize: 20,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  sectionYear: {
-    fontSize: 11,
-    color: "#64748B",
-  },
+    statNumber: {
+      fontSize: 20,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  categoryList: {
-    backgroundColor: "#FFFFFF",
-  },
+    /* ------------------------------------------
+       CATEGORY
+    ------------------------------------------ */
 
-  categoryRow: {
-    minHeight: 67,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    sectionHeader: {
+      marginTop: 26,
+      marginBottom: 10,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
 
-  categoryBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  categoryName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#172033",
-  },
+    sectionYear: {
+      fontSize: 11,
+      color:
+        colors.secondaryText,
+    },
 
-  itemCount: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+    categoryList: {
+      backgroundColor:
+        colors.background,
+    },
 
-  categoryAmount: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    categoryRow: {
+      minHeight: 67,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
 
-  // ------------------------------------------
-  // Receipts
-  // ------------------------------------------
+    categoryBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
 
-  receiptsTitle: {
-    marginTop: 20,
-    marginBottom: 10,
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    categoryName: {
+      fontSize: 15,
+      fontWeight: "700",
+      color:
+        colors.text,
+    },
 
-  receiptCard: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
+    itemCount: {
+      marginTop: 3,
+      fontSize: 12,
+      color:
+        colors.mutedText,
+    },
 
-  receiptHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    categoryAmount: {
+      fontSize: 15,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  storeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    /* ------------------------------------------
+       RECEIPTS
+    ------------------------------------------ */
 
-  storeIconText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#2563EB",
-  },
+    receiptsTitle: {
+      marginTop: 20,
+      marginBottom: 10,
+      fontSize: 16,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  storeInfo: {
-    flex: 1,
-    marginLeft: 11,
-  },
+    receiptCard: {
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      padding: 14,
+      marginBottom: 12,
+      backgroundColor:
+        colors.card,
+    },
 
-  storeName: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    receiptHeader: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+    },
 
-  receiptDate: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#64748B",
-  },
+    storeIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 13,
+      backgroundColor:
+        colors.primarySoft,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+    },
 
-  receiptTotal: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    storeIconText: {
+      fontSize: 18,
+      fontWeight: "800",
+      color:
+        colors.primary,
+    },
 
-  receiptDivider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
-    marginTop: 13,
-  },
+    storeInfo: {
+      flex: 1,
+      marginLeft: 11,
+    },
 
-  receiptItem: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    storeName: {
+      fontSize: 14,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  itemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    borderStyle: "dashed",
-  },
+    receiptDate: {
+      marginTop: 3,
+      fontSize: 12,
+      color:
+        colors.secondaryText,
+    },
 
-  itemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    paddingRight: 10,
-  },
+    receiptTotalContainer: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 7,
+    },
 
-  itemName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#172033",
-    marginRight: 7,
-  },
+    receiptTotal: {
+      fontSize: 15,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  categoryBadge: {
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
+    receiptDivider: {
+      height: 1,
+      backgroundColor:
+        colors.border,
+      marginTop: 13,
+    },
 
-  categoryBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#2563EB",
-  },
+    receiptItem: {
+      minHeight: 48,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
 
-  itemPrice: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#172033",
-  },
+    itemBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+      borderStyle:
+        "dashed",
+    },
 
-  // ------------------------------------------
-  // Empty states
-  // ------------------------------------------
+    itemLeft: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      flex: 1,
+      paddingRight: 10,
+    },
 
-  emptyState: {
-    paddingVertical: 25,
-    alignItems: "center",
-  },
+    itemName: {
+      flexShrink: 1,
+      fontSize: 14,
+      fontWeight: "700",
+      color:
+        colors.text,
+      marginRight: 7,
+    },
 
-  emptyReceiptCard: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 25,
-    alignItems: "center",
-  },
+    categoryBadge: {
+      backgroundColor:
+        colors.primarySoft,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
 
-  emptyText: {
-    fontSize: 13,
-    color: "#64748B",
-  },
+    categoryBadgeText: {
+      fontSize: 10,
+      fontWeight: "700",
+      color:
+        colors.primary,
+    },
 
-  bottomSpace: {
-    height: 30,
-  },
+    itemPrice: {
+      fontSize: 14,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
 
-  // ------------------------------------------
-  // Modal
-  // ------------------------------------------
+    /* ------------------------------------------
+       EMPTY STATES
+    ------------------------------------------ */
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    paddingHorizontal: 25,
-  },
+    emptyState: {
+      paddingVertical: 25,
+      alignItems:
+        "center",
+    },
 
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-  },
+    emptyReceiptCard: {
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      padding: 25,
+      alignItems:
+        "center",
+      backgroundColor:
+        colors.card,
+    },
 
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#172033",
-    marginBottom: 10,
-  },
+    emptyText: {
+      fontSize: 13,
+      color:
+        colors.secondaryText,
+    },
 
-  yearOption: {
-    minHeight: 48,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    bottomSpace: {
+      height: 30,
+    },
 
-  selectedYearOption: {
-    backgroundColor: "#EFF6FF",
-  },
+    /* ------------------------------------------
+       YEAR MODAL
+    ------------------------------------------ */
 
-  yearOptionText: {
-    fontSize: 14,
-    color: "#475569",
-  },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.25)",
+      justifyContent:
+        "center",
+      paddingHorizontal: 25,
+    },
 
-  selectedYearText: {
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-});
+    modalContent: {
+      backgroundColor:
+        colors.card,
+      borderRadius: 18,
+      padding: 18,
+    },
+
+    modalTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      color:
+        colors.text,
+      marginBottom: 10,
+    },
+
+    emptyModalText: {
+      fontSize: 14,
+      color:
+        colors.secondaryText,
+      paddingVertical: 15,
+    },
+
+    yearOption: {
+      minHeight: 48,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
+
+    selectedYearOption: {
+      backgroundColor:
+        colors.primarySoft,
+    },
+
+    yearOptionText: {
+      fontSize: 14,
+      color:
+        colors.secondaryText,
+    },
+
+    selectedYearText: {
+      color:
+        colors.primary,
+      fontWeight: "700",
+    },
+
+    /* ------------------------------------------
+       RECEIPT DETAILS
+    ------------------------------------------ */
+
+    detailsOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.45)",
+      justifyContent:
+        "flex-end",
+    },
+
+    detailsModal: {
+      maxHeight: "90%",
+      backgroundColor:
+        colors.background,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+    },
+
+    detailsHeader: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 18,
+    },
+
+    detailsTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
+
+    closeButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        colors.softBackground,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+    },
+
+    detailsStoreRow: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      marginBottom: 18,
+    },
+
+    detailsStoreIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 16,
+      backgroundColor:
+        colors.primarySoft,
+      justifyContent:
+        "center",
+      alignItems:
+        "center",
+    },
+
+    detailsStoreIconText: {
+      fontSize: 22,
+      fontWeight: "800",
+      color:
+        colors.primary,
+    },
+
+    detailsStoreInfo: {
+      flex: 1,
+      marginLeft: 13,
+    },
+
+    detailsStoreName: {
+      fontSize: 17,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
+
+    detailsDate: {
+      marginTop: 4,
+      fontSize: 13,
+      color:
+        colors.secondaryText,
+    },
+
+    detailsInfoCard: {
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      backgroundColor:
+        colors.card,
+      paddingHorizontal: 15,
+      marginBottom: 20,
+    },
+
+    detailsInfoRow: {
+      minHeight: 48,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
+
+    detailsLabel: {
+      fontSize: 13,
+      color:
+        colors.secondaryText,
+    },
+
+    detailsValue: {
+      fontSize: 13,
+      fontWeight: "700",
+      color:
+        colors.text,
+    },
+
+    detailsItemsTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color:
+        colors.text,
+      marginBottom: 10,
+    },
+
+    detailsItemsCard: {
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      backgroundColor:
+        colors.card,
+      paddingHorizontal: 15,
+    },
+
+    detailsItemRow: {
+      minHeight: 60,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
+
+    detailsItemBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
+
+    detailsItemLeft: {
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    detailsItemName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color:
+        colors.text,
+      marginBottom: 5,
+    },
+
+    detailsCategoryBadge: {
+      alignSelf:
+        "flex-start",
+      backgroundColor:
+        colors.primarySoft,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+
+    detailsCategoryText: {
+      fontSize: 10,
+      fontWeight: "700",
+      color:
+        colors.primary,
+    },
+
+    detailsItemPrice: {
+      fontSize: 14,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
+
+    detailsTotalCard: {
+      marginTop: 18,
+      padding: 18,
+      borderRadius: 18,
+      backgroundColor:
+        colors.primarySoft,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+    },
+
+    detailsTotalLabel: {
+      fontSize: 15,
+      fontWeight: "700",
+      color:
+        colors.text,
+    },
+
+    detailsTotalAmount: {
+      fontSize: 22,
+      fontWeight: "900",
+      color:
+        colors.primary,
+    },
+
+    detailsBottomSpace: {
+      height: 30,
+    },
+  });

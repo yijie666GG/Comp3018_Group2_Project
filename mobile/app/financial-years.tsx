@@ -76,8 +76,8 @@ export default function FinancialYearsScreen() {
       await saveFinancialYear(newFinancialYear);
 
       setFinancialYears((current) => [
-        newFinancialYear,
         ...current,
+        newFinancialYear,
       ]);
 
       setStartYear('');
@@ -105,6 +105,22 @@ export default function FinancialYearsScreen() {
       );
     }
   };
+
+  const sortedFinancialYears = [...financialYears].sort(
+    (a, b) => {
+      const startA = parseInt(
+        a.split(/[–-]/)[0],
+        10
+      );
+
+      const startB = parseInt(
+        b.split(/[–-]/)[0],
+        10
+      );
+
+      return startA - startB;
+    }
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -175,7 +191,7 @@ export default function FinancialYearsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
         >
-          {financialYears.map((year) => {
+          {sortedFinancialYears.map((year) => {
             const selected = activeYear === year;
 
             return (
