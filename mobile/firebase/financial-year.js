@@ -2,10 +2,18 @@ import {
   doc,
   getDoc,
   setDoc,
-  arrayUnion,
 } from 'firebase/firestore';
 
 import { auth, db } from './firebase';
+
+function sortFinancialYears(years) {
+  return [...new Set(years)].sort((a, b) => {
+    const startA = parseInt(a.split(/[–-]/)[0], 10);
+    const startB = parseInt(b.split(/[–-]/)[0], 10);
+
+    return startA - startB;
+  });
+}
 
 export function getCurrentFinancialYear() {
   const today = new Date();
@@ -49,10 +57,11 @@ export async function getFinancialYearSettings() {
 
   const data = snapshot.data();
 
-  const financialYears =
+  const financialYears = sortFinancialYears(
     data.financialYears?.length > 0
       ? data.financialYears
-      : [currentYear];
+      : [currentYear]
+  );
 
   const activeFinancialYear =
     data.activeFinancialYear || currentYear;
@@ -80,11 +89,21 @@ export async function addFinancialYear(year) {
   }
 
   const userRef = doc(db, 'users', user.uid);
+  const snapshot = await getDoc(userRef);
+
+  const existingYears = snapshot.exists()
+    ? snapshot.data().financialYears || []
+    : [];
+
+  const financialYears = sortFinancialYears([
+    ...existingYears,
+    year,
+  ]);
 
   await setDoc(
     userRef,
     {
-      financialYears: arrayUnion(year),
+      financialYears,
     },
     { merge: true }
   );
@@ -98,11 +117,21 @@ export async function setActiveFinancialYear(year) {
   }
 
   const userRef = doc(db, 'users', user.uid);
+  const snapshot = await getDoc(userRef);
+
+  const existingYears = snapshot.exists()
+    ? snapshot.data().financialYears || []
+    : [];
+
+  const financialYears = sortFinancialYears([
+    ...existingYears,
+    year,
+  ]);
 
   await setDoc(
     userRef,
     {
-      financialYears: arrayUnion(year),
+      financialYears,
       activeFinancialYear: year,
     },
     { merge: true }
