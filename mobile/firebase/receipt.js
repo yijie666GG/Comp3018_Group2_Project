@@ -38,6 +38,7 @@ export async function saveReceiptImage(receiptData, imageUri) {
                 total: Number(receiptData.total) || 0,
                 gst: Number(receiptData.gst) || 0,
                 imageUrl: imageUrl,
+                createdAt: serverTimestamp(),
             }
         );
 

@@ -12,7 +12,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 
-import { doc, getDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  limit,
+} from 'firebase/firestore';
+
 import { auth, db } from '../../firebase/firebase';
 
 import {
@@ -21,6 +30,17 @@ import {
 } from '../../firebase/financial-year';
 
 import { useTheme } from '../../theme/ThemeContext';
+
+type Receipt = {
+  id: string;
+  store?: string;
+  date?: string;
+  time?: string;
+  total?: number;
+  gst?: number;
+  items?: any[];
+  imageUrl?: string;
+};
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -31,24 +51,28 @@ export default function HomeScreen() {
   );
 
   const [name, setName] = useState('');
-
-  // These will come from the database later.
-  const totalExpenses = 0;
-  const itemsSaved = 0;
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [itemsSaved, setItemSaved] = useState(0);
+  const [recentReceipt, setRecentReceipts] = useState<Receipt[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       const loadHomeData = async () => {
         try {
+          setLoading(true);
+
           const user = auth.currentUser;
 
           if (!user) {
             return;
           }
 
+          // Get current financial year
           const settings = await getFinancialYearSettings();
           setFinancialYear(settings.activeFinancialYear);
 
+          // Get user information
           const userRef = doc(db, 'users', user.uid);
           const snapshot = await getDoc(userRef);
 
@@ -56,8 +80,63 @@ export default function HomeScreen() {
             const data = snapshot.data();
             setName(data.name || '');
           }
+
+          // Reference to user's receipts
+          const receiptRef = collection(
+            db,
+            'users',
+            user.uid,
+            'receipts'
+          );
+
+          // Get all receipts
+          const receiptSnapshot = await getDocs(receiptRef);
+
+          // Number of receipts saved
+          setItemSaved(receiptSnapshot.size);
+
+          // Calculate total expenses
+          let total = 0;
+
+          receiptSnapshot.forEach((receipt) => {
+            const data = receipt.data();
+
+            total += Number(data.total) || 0;
+          });
+
+          setTotalExpenses(total);
+
+          // Get most recent receipt
+          const recentQuery = query(
+            receiptRef,
+            orderBy('createdAt', 'desc'),
+            limit(5)
+          );
+
+          const recentSnapshot = await getDocs(recentQuery);
+
+          const showRecent: Receipt[] = recentSnapshot.docs.map(
+            (receipt) => {
+              const data = receipt.data();
+
+              return {
+                id: receipt.id,
+                store: data.store,
+                date: data.date,
+                time: data.time,
+                items: data.items,
+                total: Number(data.total) || 0,
+                gst: Number(data.gst) || 0,
+                imageUrl: data.imageUrl,
+              };
+            }
+          );
+
+          setRecentReceipts(showRecent);
         } catch (error) {
           console.log('Load home data error:', error);
+        } finally {
+          setLoading(false);
         }
       };
 
@@ -71,6 +150,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
@@ -91,6 +171,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* FINANCIAL YEAR CARD */}
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>
             Current financial year
@@ -123,6 +204,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* QUICK ACTIONS */}
         <Text style={styles.sectionTitle}>
           Quick actions
         </Text>
@@ -217,27 +299,74 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* RECENT ITEMS */}
         <Text style={styles.sectionTitle}>
           Recent items
         </Text>
 
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIcon}>
-            <Ionicons
-              name="receipt-outline"
-              size={26}
-              color={colors.primary}
-            />
+        {loading ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>
+              Loading recent items...
+            </Text>
           </View>
+        ) : recentReceipt.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons
+                name="receipt-outline"
+                size={26}
+                color={colors.primary}
+              />
+            </View>
 
-          <Text style={styles.emptyTitle}>
-            No items yet
-          </Text>
+            <Text style={styles.emptyTitle}>
+              No items yet
+            </Text>
 
-          <Text style={styles.emptyText}>
-            Scan or add a receipt to start tracking your expenses.
-          </Text>
-        </View>
+            <Text style={styles.emptyText}>
+              Scan or add a receipt to start tracking your expenses.
+            </Text>
+          </View>
+        ) : (
+          recentReceipt.map((receipt) => (
+            <View
+              key={receipt.id}
+              style={styles.receiptCard}
+            >
+              {/* RECEIPT ICON */}
+              <View style={styles.receiptIcon}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </View>
+
+              {/* RECEIPT INFORMATION */}
+              <View style={styles.receiptInfo}>
+                <Text
+                  style={styles.receiptStore}
+                  numberOfLines={1}
+                >
+                  {receipt.store || 'Unknown store'}
+                </Text>
+
+                <Text style={styles.receiptDate}>
+                  {receipt.date || 'No date'}
+                  {receipt.time
+                    ? ` • ${receipt.time}`
+                    : ''}
+                </Text>
+              </View>
+
+              {/* RECEIPT TOTAL */}
+              <Text style={styles.receiptTotal}>
+                ${(receipt.total || 0).toFixed(2)}
+              </Text>
+            </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -256,6 +385,7 @@ const createStyles = (colors: any) =>
       paddingBottom: 110,
     },
 
+    // HEADER
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -284,6 +414,7 @@ const createStyles = (colors: any) =>
       justifyContent: 'center',
     },
 
+    // HERO CARD
     heroCard: {
       backgroundColor: colors.primary,
       borderRadius: 22,
@@ -321,6 +452,7 @@ const createStyles = (colors: any) =>
       fontWeight: '800',
     },
 
+    // SECTION
     sectionTitle: {
       fontSize: 18,
       fontWeight: '800',
@@ -328,6 +460,7 @@ const createStyles = (colors: any) =>
       marginBottom: 14,
     },
 
+    // QUICK ACTION GRID
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -368,6 +501,7 @@ const createStyles = (colors: any) =>
       color: colors.secondaryText,
     },
 
+    // EMPTY STATE
     emptyCard: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -400,5 +534,50 @@ const createStyles = (colors: any) =>
       textAlign: 'center',
       color: colors.secondaryText,
       marginTop: 4,
+    },
+
+    // RECENT RECEIPT
+    receiptCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 14,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+    },
+
+    receiptIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.primarySoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    receiptInfo: {
+      flex: 1,
+      marginLeft: 12,
+      marginRight: 8,
+    },
+
+    receiptStore: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+
+    receiptDate: {
+      fontSize: 11,
+      color: colors.secondaryText,
+      marginTop: 4,
+    },
+
+    receiptTotal: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
     },
   });
