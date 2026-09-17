@@ -9,6 +9,7 @@ import {
   Pressable,
   Alert,
   Modal,
+  TextInput,
 } from "react-native";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -18,7 +19,6 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import { categories } from "../data/categories";
 import { useTheme } from "../theme/ThemeContext";
 
 type ReceiptItem = {
@@ -40,23 +40,127 @@ export default function ReceiptReview() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
 
+  // ======================================================
+  // Route parameters
+  // ======================================================
+
   const params = useLocalSearchParams();
+
+  const imageUri =
+    typeof params.imageUri === "string"
+      ? params.imageUri
+      : null;
+
+  const imageFileName =
+    typeof params.fileName === "string"
+      ? params.fileName
+      : null;
+
+  const imageMimeType =
+    typeof params.mimeType === "string"
+      ? params.mimeType
+      : null;
 
   const receiptParam =
     typeof params.receipt === "string"
       ? params.receipt
       : "";
 
+  // ======================================================
+  // Receipt data
+  // ======================================================
+
   const originalReceipt: Receipt = receiptParam
     ? JSON.parse(receiptParam)
     : {
-      store: null,
-      date: null,
-      time: null,
-      total: null,
-      gst: null,
-      items: [],
-    };
+        store: null,
+        date: null,
+        time: null,
+        total: null,
+        gst: null,
+        items: [],
+      };
+
+  // ======================================================
+  // Financial Year
+  // ======================================================
+
+  const getFinancialYearFromDate = (
+    date: string | null
+  ): string => {
+    const currentDate = new Date();
+
+    if (!date) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+
+      return month >= 7
+        ? `${year}-${year + 1}`
+        : `${year - 1}-${year}`;
+    }
+
+    const parts = date.split(/[./-]/);
+
+    if (parts.length >= 3) {
+      const month = Number(parts[1]);
+      let year = Number(parts[2]);
+
+      if (year < 100) {
+        year += 2000;
+      }
+
+      if (
+        Number.isFinite(month) &&
+        Number.isFinite(year) &&
+        month >= 1 &&
+        month <= 12
+      ) {
+        return month >= 7
+          ? `${year}-${year + 1}`
+          : `${year - 1}-${year}`;
+      }
+    }
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+
+    return month >= 7
+      ? `${year}-${year + 1}`
+      : `${year - 1}-${year}`;
+  };
+
+  const defaultFinancialYear =
+    getFinancialYearFromDate(
+      originalReceipt.date
+    );
+
+  const [
+    financialYear,
+    setFinancialYear,
+  ] = useState(defaultFinancialYear);
+
+  const [
+    financialYearModalVisible,
+    setFinancialYearModalVisible,
+  ] = useState(false);
+
+  const defaultStartYear = Number(
+    defaultFinancialYear.split("-")[0]
+  );
+
+  const financialYears = Array.from(
+    { length: 7 },
+    (_, index) => {
+      const startYear =
+        defaultStartYear + 3 - index;
+
+      return `${startYear}-${startYear + 1}`;
+    }
+  );
+
+  // ======================================================
+  // Receipt items
+  // ======================================================
 
   const [items, setItems] =
     useState<ReceiptItem[]>(
@@ -66,108 +170,240 @@ export default function ReceiptReview() {
       }))
     );
 
-  const [selectedItemIndex, setSelectedItemIndex] =
-    useState<number | null>(null);
 
-  const [categoryModalVisible, setCategoryModalVisible] =
-    useState(false);
+  // ======================================================
+  // Delete item
+  // ======================================================
 
-  const openCategoryPicker = (index: number) => {
-    setSelectedItemIndex(index);
-    setCategoryModalVisible(true);
-  };
-
-  const selectCategory = (category: string) => {
-    if (selectedItemIndex === null) {
-      return;
-    }
-
-    setItems((currentItems) =>
-      currentItems.map((item, index) =>
-        index === selectedItemIndex
-          ? {
-            ...item,
-            category,
-          }
-          : item
-      )
-    );
-
-    setCategoryModalVisible(false);
-    setSelectedItemIndex(null);
-  };
-
-  const removeItem = (index: number) => {
+  const removeItem = (
+    index: number
+  ) => {
     setItems((currentItems) =>
       currentItems.filter(
-        (_, itemIndex) => itemIndex !== index
+        (_, itemIndex) =>
+          itemIndex !== index
       )
     );
   };
 
-  const handleSaveReceipt = async () => {
-    const missingCategory = items.some(
-      (item) => item.category === null
+  // ======================================================
+  // Add / Edit item modal
+  // ======================================================
+
+  const [
+    itemModalVisible,
+    setItemModalVisible,
+  ] = useState(false);
+
+  const [
+    editingItemIndex,
+    setEditingItemIndex,
+  ] = useState<number | null>(null);
+
+  const [
+    itemName,
+    setItemName,
+  ] = useState("");
+
+  const [
+    itemPrice,
+    setItemPrice,
+  ] = useState("");
+
+  const openAddItem = () => {
+    setEditingItemIndex(null);
+    setItemName("");
+    setItemPrice("");
+    setItemModalVisible(true);
+  };
+
+  const openEditItem = (
+    index: number
+  ) => {
+    const item = items[index];
+
+    setEditingItemIndex(index);
+    setItemName(item.name);
+    setItemPrice(
+      item.price.toFixed(2)
     );
 
-    if (missingCategory) {
-      Alert.alert(
-        "Category Required",
-        "Please select a category for every item before saving."
-      );
-      return;
-    }
-
-    if (items.length === 0) {
-      Alert.alert(
-        "No Items",
-        "There are no receipt items to save."
-      );
-      return;
-    }
-
-    try {
-      await saveReceipt({
-        store: originalReceipt.store,
-        date: originalReceipt.date,
-        time: originalReceipt.time,
-        total: originalReceipt.total,
-        gst: originalReceipt.gst,
-
-        items: items.map((item) => ({
-          name: item.name,
-          price: item.price,
-          category: item.category as string,
-        })),
-      });
-
-      Alert.alert(
-        "Receipt Saved",
-        "Receipt saved successfully.",
-        [
-          {
-            text: "OK",
-            onPress: () =>
-              router.replace("/(tabs)/scan"),
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("Save receipt error:", error);
-
-      Alert.alert(
-        "Save Error",
-        "Unable to save receipt."
-      );
-    }
+    setItemModalVisible(true);
   };
+
+  const closeItemModal = () => {
+    setItemModalVisible(false);
+    setEditingItemIndex(null);
+    setItemName("");
+    setItemPrice("");
+  };
+
+  const saveManualItem = () => {
+    const cleanName =
+      itemName.trim();
+
+    const cleanPrice =
+      itemPrice
+        .trim()
+        .replace(",", ".");
+
+    const parsedPrice =
+      Number(cleanPrice);
+
+    if (!cleanName) {
+      Alert.alert(
+        "Item Name Required",
+        "Please enter an item name."
+      );
+      return;
+    }
+
+    if (
+      cleanPrice === "" ||
+      !Number.isFinite(parsedPrice) ||
+      parsedPrice < 0
+    ) {
+      Alert.alert(
+        "Invalid Price",
+        "Please enter a valid item price."
+      );
+      return;
+    }
+
+    // Edit existing item
+    if (
+      editingItemIndex !== null
+    ) {
+      setItems((currentItems) =>
+        currentItems.map(
+          (item, index) =>
+            index === editingItemIndex
+              ? {
+                  ...item,
+                  name: cleanName,
+                  price: parsedPrice,
+                }
+              : item
+        )
+      );
+    }
+
+    // Add new item
+    else {
+      setItems((currentItems) => [
+        ...currentItems,
+        {
+          name: cleanName,
+          price: parsedPrice,
+          category: null,
+        },
+      ]);
+    }
+
+    closeItemModal();
+  };
+
+  // ======================================================
+  // Save receipt
+  // ======================================================
+
+  const handleSaveReceipt =
+    async () => {
+      const missingCategory =
+        items.some(
+          (item) =>
+            !item.category?.trim()
+        );
+
+      if (missingCategory) {
+        Alert.alert(
+          "Category Required",
+          "Please enter a category for every item before saving."
+        );
+        return;
+      }
+
+      if (items.length === 0) {
+        Alert.alert(
+          "No Items",
+          "There are no receipt items to save."
+        );
+        return;
+      }
+
+      try {
+        await saveReceipt(
+          {
+            store:
+              originalReceipt.store,
+
+            date:
+              originalReceipt.date,
+
+            financialYear,
+
+            time:
+              originalReceipt.time,
+
+            total:
+              originalReceipt.total,
+
+            gst:
+              originalReceipt.gst,
+
+            items: items.map(
+              (item) => ({
+                name: item.name,
+                price: item.price,
+                category:
+                  item.category?.trim() ?? "",
+              })
+            ),
+          },
+
+
+        );
+
+        Alert.alert(
+          "Receipt Saved",
+          "Receipt saved successfully.",
+          [
+            {
+              text: "OK",
+              onPress: () =>
+                router.replace(
+                  "/(tabs)/scan"
+                ),
+            },
+          ]
+        );
+      } catch (error) {
+        console.error(
+          "Save receipt error:",
+          error
+        );
+
+        Alert.alert(
+          "Save Error",
+          "Unable to save receipt."
+        );
+      }
+    };
+
+  // ======================================================
+  // UI
+  // ======================================================
 
   return (
     <View style={styles.container}>
+      {/* Header */}
+
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() =>
+            router.back()
+          }
         >
           <Ionicons
             name="arrow-back"
@@ -180,72 +416,176 @@ export default function ReceiptReview() {
           Receipt Review
         </Text>
 
-        <View style={styles.headerSpacer} />
+        <View
+          style={
+            styles.headerSpacer
+          }
+        />
       </View>
 
       <ScrollView
         contentContainerStyle={
           styles.scrollContent
         }
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
+        {/* Receipt summary */}
+
+        <View
+          style={styles.summaryCard}
+        >
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={
+                styles.summaryLabel
+              }
+            >
               Store
             </Text>
 
-            <Text style={styles.summaryValue}>
+            <Text
+              style={
+                styles.summaryValue
+              }
+            >
               {originalReceipt.store ??
                 "Unknown"}
             </Text>
           </View>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={
+                styles.summaryLabel
+              }
+            >
               Date
             </Text>
 
-            <Text style={styles.summaryValue}>
+            <Text
+              style={
+                styles.summaryValue
+              }
+            >
               {originalReceipt.date ??
                 "Unknown"}
             </Text>
           </View>
 
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={styles.summaryLabel}
+            >
+              Financial Year
+            </Text>
+
+            <Pressable
+              style={
+                styles.financialYearButton
+              }
+              onPress={() =>
+                setFinancialYearModalVisible(
+                  true
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.financialYearValue
+                }
+              >
+                {financialYear}
+              </Text>
+
+              <Ionicons
+                name="chevron-down"
+                size={17}
+                color={colors.primary}
+              />
+            </Pressable>
+          </View>
+
           {originalReceipt.time && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
+            <View
+              style={
+                styles.summaryRow
+              }
+            >
+              <Text
+                style={
+                  styles.summaryLabel
+                }
+              >
                 Time
               </Text>
 
-              <Text style={styles.summaryValue}>
-                {originalReceipt.time}
+              <Text
+                style={
+                  styles.summaryValue
+                }
+              >
+                {
+                  originalReceipt.time
+                }
               </Text>
             </View>
           )}
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
+          <View
+            style={styles.summaryRow}
+          >
+            <Text
+              style={
+                styles.summaryLabel
+              }
+            >
               Total
             </Text>
 
-            <Text style={styles.totalValue}>
+            <Text
+              style={
+                styles.totalValue
+              }
+            >
               $
-              {originalReceipt.total !== null
+              {originalReceipt.total !==
+              null
                 ? originalReceipt.total.toFixed(
-                  2
-                )
+                    2
+                  )
                 : "0.00"}
             </Text>
           </View>
 
-          {originalReceipt.gst !== null && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
+          {originalReceipt.gst !==
+            null && (
+            <View
+              style={
+                styles.summaryRow
+              }
+            >
+              <Text
+                style={
+                  styles.summaryLabel
+                }
+              >
                 GST
               </Text>
 
-              <Text style={styles.summaryValue}>
+              <Text
+                style={
+                  styles.summaryValue
+                }
+              >
                 $
                 {originalReceipt.gst.toFixed(
                   2
@@ -255,91 +595,224 @@ export default function ReceiptReview() {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>
-          Receipt Items
-        </Text>
+        {/* Receipt items header */}
 
-        <Text style={styles.sectionSubtitle}>
-          Select a category for each item.
-        </Text>
-
-        {items.map((item, index) => (
+        <View
+          style={
+            styles.sectionHeader
+          }
+        >
           <View
-            key={`${item.name}-${index}`}
-            style={styles.itemCard}
+            style={
+              styles.sectionHeaderText
+            }
           >
-            <View style={styles.itemTopRow}>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>
-                  {item.name}
-                </Text>
-
-                <Text style={styles.itemPrice}>
-                  ${item.price.toFixed(2)}
-                </Text>
-              </View>
-
-              <Pressable
-                style={styles.deleteButton}
-                onPress={() =>
-                  removeItem(index)
-                }
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={21}
-                  color={colors.danger}
-                />
-              </Pressable>
-            </View>
-
-            <Text style={styles.categoryLabel}>
-              Category
-            </Text>
-
-            <Pressable
-              style={styles.categoryButton}
-              onPress={() =>
-                openCategoryPicker(index)
+            <Text
+              style={
+                styles.sectionTitle
               }
             >
-              <Text
-                style={[
-                  styles.categoryButtonText,
-                  !item.category &&
-                  styles.placeholderCategory,
-                ]}
+              Receipt Items
+            </Text>
+
+            <Text
+              style={
+                styles.sectionSubtitle
+              }
+            >
+              Enter a category for
+              each item.
+            </Text>
+          </View>
+
+          <Pressable
+            style={
+              styles.addItemButton
+            }
+            onPress={openAddItem}
+          >
+            <Ionicons
+              name="add"
+              size={20}
+              color="#FFFFFF"
+            />
+
+            <Text
+              style={
+                styles.addItemButtonText
+              }
+            >
+              Add Item
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Receipt item cards */}
+
+        {items.map(
+          (item, index) => (
+            <View
+              key={`${item.name}-${index}`}
+              style={
+                styles.itemCard
+              }
+            >
+              <View
+                style={
+                  styles.itemTopRow
+                }
               >
-                {item.category ??
-                  "Select Category"}
+                <View
+                  style={
+                    styles.itemInfo
+                  }
+                >
+                  <Text
+                    style={
+                      styles.itemName
+                    }
+                  >
+                    {item.name}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.itemPrice
+                    }
+                  >
+                    $
+                    {item.price.toFixed(
+                      2
+                    )}
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.itemActions
+                  }
+                >
+                  {/* Edit */}
+
+                  <Pressable
+                    style={
+                      styles.editButton
+                    }
+                    onPress={() =>
+                      openEditItem(
+                        index
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="pencil-outline"
+                      size={20}
+                      color={
+                        colors.primary
+                      }
+                    />
+                  </Pressable>
+
+                  {/* Delete */}
+
+                  <Pressable
+                    style={
+                      styles.deleteButton
+                    }
+                    onPress={() =>
+                      removeItem(
+                        index
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={21}
+                      color={
+                        colors.danger
+                      }
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Category */}
+
+              <Text
+                style={
+                  styles.categoryLabel
+                }
+              >
+                Category
               </Text>
 
-              <Ionicons
-                name="chevron-down"
-                size={19}
-                color={colors.secondaryText}
+              <TextInput
+                style={styles.categoryInput}
+                value={item.category ?? ""}
+                onChangeText={(text) => {
+                  setItems((currentItems) =>
+                    currentItems.map(
+                      (currentItem, itemIndex) =>
+                        itemIndex === index
+                          ? {
+                              ...currentItem,
+                              category: text,
+                            }
+                          : currentItem
+                    )
+                  );
+                }}
+                placeholder="Enter category"
+                placeholderTextColor={
+                  colors.mutedText
+                }
+                autoCapitalize="words"
               />
-            </Pressable>
-          </View>
-        ))}
+            </View>
+          )
+        )}
+
+        {/* No items */}
 
         {items.length === 0 && (
-          <View style={styles.emptyCard}>
+          <View
+            style={styles.emptyCard}
+          >
             <Ionicons
               name="receipt-outline"
               size={40}
-              color={colors.mutedText}
+              color={
+                colors.mutedText
+              }
             />
 
-            <Text style={styles.emptyText}>
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
               No receipt items.
+            </Text>
+
+            <Text
+              style={
+                styles.emptySubText
+              }
+            >
+              Add an item manually if
+              the receipt scan missed
+              it.
             </Text>
           </View>
         )}
 
+        {/* Save receipt */}
+
         <Pressable
           style={styles.saveButton}
-          onPress={handleSaveReceipt}
+          onPress={
+            handleSaveReceipt
+          }
         >
           <Ionicons
             name="save-outline"
@@ -347,73 +820,240 @@ export default function ReceiptReview() {
             color="#FFFFFF"
           />
 
-          <Text style={styles.saveButtonText}>
+          <Text
+            style={
+              styles.saveButtonText
+            }
+          >
             Save Receipt
           </Text>
         </Pressable>
       </ScrollView>
 
+      {/* ==================================================
+          ADD / EDIT ITEM MODAL
+      ================================================== */}
+
       <Modal
-        visible={categoryModalVisible}
+        visible={itemModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={
+          closeItemModal
+        }
+      >
+        <View
+          style={
+            styles.itemModalOverlay
+          }
+        >
+          <View
+            style={
+              styles.itemModalContent
+            }
+          >
+            <Text
+              style={
+                styles.itemModalTitle
+              }
+            >
+              {editingItemIndex !==
+              null
+                ? "Edit Item"
+                : "Add Item"}
+            </Text>
+
+            <Text
+              style={
+                styles.inputLabel
+              }
+            >
+              Item Name
+            </Text>
+
+            <TextInput
+              style={
+                styles.textInput
+              }
+              value={itemName}
+              onChangeText={
+                setItemName
+              }
+              placeholder="Enter item name"
+              placeholderTextColor={
+                colors.mutedText
+              }
+              autoCapitalize="sentences"
+              returnKeyType="next"
+            />
+
+            <Text
+              style={
+                styles.inputLabel
+              }
+            >
+              Price
+            </Text>
+
+            <TextInput
+              style={
+                styles.textInput
+              }
+              value={itemPrice}
+              onChangeText={
+                setItemPrice
+              }
+              placeholder="0.00"
+              placeholderTextColor={
+                colors.mutedText
+              }
+              keyboardType="decimal-pad"
+            />
+
+            <View
+              style={
+                styles.itemModalButtons
+              }
+            >
+              <Pressable
+                style={
+                  styles.itemModalCancelButton
+                }
+                onPress={
+                  closeItemModal
+                }
+              >
+                <Text
+                  style={
+                    styles.itemModalCancelText
+                  }
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={
+                  styles.itemModalSaveButton
+                }
+                onPress={
+                  saveManualItem
+                }
+              >
+                <Text
+                  style={
+                    styles.itemModalSaveText
+                  }
+                >
+                  {editingItemIndex !==
+                  null
+                    ? "Save Changes"
+                    : "Add Item"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================
+          FINANCIAL YEAR MODAL
+      ================================================== */}
+
+      <Modal
+        visible={
+          financialYearModalVisible
+        }
         transparent
         animationType="fade"
         onRequestClose={() =>
-          setCategoryModalVisible(false)
+          setFinancialYearModalVisible(
+            false
+          )
         }
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={
+            styles.yearModalOverlay
+          }
           onPress={() =>
-            setCategoryModalVisible(false)
+            setFinancialYearModalVisible(
+              false
+            )
           }
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              Select Category
+          <Pressable
+            style={
+              styles.yearModalContent
+            }
+            onPress={() => {}}
+          >
+            <Text
+              style={styles.yearModalTitle}
+            >
+              Select financial year
             </Text>
 
-            {categories.map((category) => (
-              <Pressable
-                key={category}
-                style={styles.categoryOption}
-                onPress={() =>
-                  selectCategory(category)
-                }
-              >
-                <Text style={styles.categoryOptionText}>
-                  {category}
-                </Text>
+            {financialYears.map((year) => {
+              const selected =
+                year === financialYear;
 
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.mutedText}
-                />
-              </Pressable>
-            ))}
+              return (
+                <Pressable
+                  key={year}
+                  style={[
+                    styles.yearOption,
+                    selected &&
+                      styles.yearOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setFinancialYear(year);
+                    setFinancialYearModalVisible(
+                      false
+                    );
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.yearOptionText,
+                      selected &&
+                        styles.yearOptionTextSelected,
+                    ]}
+                  >
+                    {year}
+                  </Text>
 
-            <Pressable
-              style={styles.cancelButton}
-              onPress={() =>
-                setCategoryModalVisible(false)
-              }
-            >
-              <Text style={styles.cancelText}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+                  {selected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color={colors.primary}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
+          </Pressable>
         </Pressable>
       </Modal>
+
+
     </View>
   );
 }
 
-const createStyles = (colors: any) =>
+// ======================================================
+// Styles
+// ======================================================
+
+const createStyles = (
+  colors: any
+) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor:
+        colors.background,
     },
 
     header: {
@@ -423,9 +1063,11 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.card,
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      justifyContent:
+        "space-between",
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor:
+        colors.border,
     },
 
     backButton: {
@@ -450,22 +1092,26 @@ const createStyles = (colors: any) =>
     },
 
     summaryCard: {
-      backgroundColor: colors.card,
+      backgroundColor:
+        colors.card,
       borderRadius: 18,
       padding: 18,
       marginBottom: 25,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor:
+        colors.border,
     },
 
     summaryRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent:
+        "space-between",
       marginBottom: 10,
     },
 
     summaryLabel: {
-      color: colors.secondaryText,
+      color:
+        colors.secondaryText,
       fontSize: 14,
     },
 
@@ -473,12 +1119,93 @@ const createStyles = (colors: any) =>
       color: colors.text,
       fontSize: 14,
       fontWeight: "600",
+      flexShrink: 1,
+      textAlign: "right",
+      marginLeft: 15,
     },
 
     totalValue: {
       color: colors.primary,
       fontSize: 18,
       fontWeight: "800",
+    },
+
+    financialYearButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+
+    financialYearValue: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
+    yearModalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+
+    yearModalContent: {
+      backgroundColor:
+        colors.card,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+
+    yearModalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: 14,
+    },
+
+    yearOption: {
+      minHeight: 56,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 6,
+    },
+
+    yearOptionSelected: {
+      backgroundColor:
+        colors.softBackground,
+    },
+
+    yearOptionText: {
+      fontSize: 16,
+      color:
+        colors.secondaryText,
+      fontWeight: "500",
+    },
+
+    yearOptionTextSelected: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
+
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+      gap: 12,
+    },
+
+    sectionHeaderText: {
+      flex: 1,
     },
 
     sectionTitle: {
@@ -489,23 +1216,44 @@ const createStyles = (colors: any) =>
 
     sectionSubtitle: {
       marginTop: 4,
-      marginBottom: 15,
-      color: colors.secondaryText,
+      color:
+        colors.secondaryText,
       fontSize: 13,
     },
 
+    addItemButton: {
+      backgroundColor:
+        colors.primary,
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 5,
+    },
+
+    addItemButtonText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
     itemCard: {
-      backgroundColor: colors.card,
+      backgroundColor:
+        colors.card,
       borderRadius: 18,
       padding: 16,
       marginBottom: 14,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor:
+        colors.border,
     },
 
     itemTopRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent:
+        "space-between",
       alignItems: "flex-start",
     },
 
@@ -528,11 +1276,28 @@ const createStyles = (colors: any) =>
       fontWeight: "800",
     },
 
+    itemActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+
+    editButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor:
+        colors.softBackground,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+
     deleteButton: {
       width: 38,
       height: 38,
       borderRadius: 10,
-      backgroundColor: colors.dangerSoft,
+      backgroundColor:
+        colors.dangerSoft,
       justifyContent: "center",
       alignItems: "center",
     },
@@ -542,31 +1307,24 @@ const createStyles = (colors: any) =>
       marginBottom: 7,
       fontSize: 12,
       fontWeight: "600",
-      color: colors.secondaryText,
+      color:
+        colors.secondaryText,
     },
 
-    categoryButton: {
+    categoryInput: {
       height: 48,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor:
+        colors.border,
       borderRadius: 12,
       paddingHorizontal: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: colors.softBackground,
-    },
-
-    categoryButtonText: {
-      fontSize: 14,
+      backgroundColor:
+        colors.softBackground,
       color: colors.text,
+      fontSize: 14,
       fontWeight: "600",
     },
 
-    placeholderCategory: {
-      color: colors.mutedText,
-      fontWeight: "400",
-    },
 
     emptyCard: {
       paddingVertical: 35,
@@ -576,11 +1334,22 @@ const createStyles = (colors: any) =>
     emptyText: {
       marginTop: 10,
       color: colors.mutedText,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+
+    emptySubText: {
+      marginTop: 5,
+      color: colors.mutedText,
+      fontSize: 13,
+      textAlign: "center",
+      maxWidth: 260,
     },
 
     saveButton: {
       marginTop: 15,
-      backgroundColor: colors.primary,
+      backgroundColor:
+        colors.primary,
       borderRadius: 14,
       paddingVertical: 16,
       flexDirection: "row",
@@ -595,55 +1364,87 @@ const createStyles = (colors: any) =>
       fontWeight: "700",
     },
 
-    modalOverlay: {
+    itemModalOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "flex-end",
+      backgroundColor:
+        "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      paddingHorizontal: 24,
     },
 
-    modalContent: {
-      backgroundColor: colors.card,
-      paddingHorizontal: 20,
-      paddingTop: 22,
-      paddingBottom: 30,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
+    itemModalContent: {
+      backgroundColor:
+        colors.card,
+      borderRadius: 20,
+      padding: 22,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor:
+        colors.border,
     },
 
-    modalTitle: {
-      fontSize: 20,
+    itemModalTitle: {
+      fontSize: 21,
       fontWeight: "800",
       color: colors.text,
-      marginBottom: 15,
+      marginBottom: 20,
     },
 
-    categoryOption: {
-      paddingVertical: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
+    inputLabel: {
+      color:
+        colors.secondaryText,
+      fontSize: 13,
+      fontWeight: "600",
+      marginBottom: 7,
     },
 
-    categoryOptionText: {
-      fontSize: 16,
-      color: colors.text,
-    },
-
-    cancelButton: {
-      marginTop: 18,
-      backgroundColor: colors.softBackground,
+    textInput: {
+      height: 50,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
       borderRadius: 12,
+      paddingHorizontal: 14,
+      marginBottom: 16,
+      backgroundColor:
+        colors.softBackground,
+      color: colors.text,
+      fontSize: 15,
+    },
+
+    itemModalButtons: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 5,
+    },
+
+    itemModalCancelButton: {
+      flex: 1,
       paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor:
+        colors.softBackground,
       alignItems: "center",
     },
 
-    cancelText: {
-      color: colors.secondaryText,
-      fontSize: 15,
+    itemModalCancelText: {
+      color:
+        colors.secondaryText,
       fontWeight: "700",
     },
+
+    itemModalSaveButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor:
+        colors.primary,
+      alignItems: "center",
+    },
+
+    itemModalSaveText: {
+      color: "#FFFFFF",
+      fontWeight: "700",
+    },
+
+
   });

@@ -22,6 +22,7 @@ export type SavedReceipt = {
   id: string;
   store: string | null;
   date: string | null;
+  financialYear: string | null;
   time: string | null;
   total: number | null;
   gst: number | null;
@@ -73,14 +74,11 @@ export async function getReceipts(): Promise<SavedReceipt[]> {
       getCurrentUserReceiptsCollection();
 
     /*
-    Do not use orderBy("createdAt") here.
+    Load all receipts first instead of using
+    orderBy("createdAt").
 
-    Some older receipt documents may not have
-    createdAt correctly stored. Firestore can
-    exclude those documents from an orderBy query.
-
-    We load all receipts first and sort them
-    locally instead.
+    This allows older receipt documents that
+    may not contain createdAt to still be loaded.
     */
 
     const snapshot = await getDocs(receiptsRef);
@@ -130,6 +128,11 @@ export async function getReceipts(): Promise<SavedReceipt[]> {
               ? data.date
               : null,
 
+          financialYear:
+            typeof data.financialYear === "string"
+              ? data.financialYear
+              : null,
+
           time:
             typeof data.time === "string"
               ? data.time
@@ -155,10 +158,8 @@ export async function getReceipts(): Promise<SavedReceipt[]> {
       });
 
     /*
-    Sort newest first.
-
-    Receipts without createdAt are placed
-    at the bottom instead of being removed.
+    Sort newest receipts first.
+    Receipts without createdAt go to the bottom.
     */
 
     receipts.sort((a, b) => {
@@ -174,17 +175,16 @@ export async function getReceipts(): Promise<SavedReceipt[]> {
     });
 
     console.log(
-      "Receipts returned to Summary:",
+      "Receipts returned:",
       receipts
     );
 
     return receipts;
   } catch (error) {
     console.error(
-      "FAILED TO LOAD RECEIPTS FROM FIREBASE:"
+      "FAILED TO LOAD RECEIPTS FROM FIREBASE:",
+      error
     );
-
-    console.error(error);
 
     return [];
   }
@@ -206,6 +206,9 @@ export async function saveReceipt(
   }
 
   try {
+    console.log("===== Saving Receipt =====");
+    console.log("Firebase user:", user.uid);
+
     const receiptsRef = collection(
       db,
       "users",
@@ -213,11 +216,17 @@ export async function saveReceipt(
       "receipts"
     );
 
+    /*
+    Only receipt data is saved to Firestore.
+    Receipt images are NOT uploaded to Firebase Storage.
+    */
+
     const receiptData = {
       userId: user.uid,
 
       store: receipt.store,
       date: receipt.date,
+      financialYear: receipt.financialYear,
       time: receipt.time,
 
       total: receipt.total,
@@ -242,7 +251,7 @@ export async function saveReceipt(
     };
 
     console.log(
-      "Receipt saved to Firebase:",
+      "Receipt saved to Firestore:",
       docRef.id
     );
 
