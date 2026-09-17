@@ -2,9 +2,14 @@ import {
   doc,
   getDoc,
   setDoc,
-} from 'firebase/firestore';
+  arrayUnion,
+} from "firebase/firestore";
 
-import { auth, db } from './firebase';
+import { auth, db } from "./firebase";
+
+/* ======================================================
+   GET CURRENT FINANCIAL YEAR
+====================================================== */
 
 function sortFinancialYears(years) {
   return [...new Set(years)].sort((a, b) => {
@@ -17,25 +22,56 @@ function sortFinancialYears(years) {
 
 export function getCurrentFinancialYear() {
   const today = new Date();
+
   const year = today.getFullYear();
   const month = today.getMonth();
 
+  /*
+    Australian financial year:
+    1 July -> 30 June
+
+    Examples:
+
+    August 2026
+    = 2026-2027
+
+    March 2026
+    = 2025-2026
+  */
+
   return month >= 6
-    ? `${year}–${year + 1}`
-    : `${year - 1}–${year}`;
+    ? `${year}-${year + 1}`
+    : `${year - 1}-${year}`;
 }
+
+/* ======================================================
+   GET FINANCIAL YEAR SETTINGS
+====================================================== */
 
 export async function getFinancialYearSettings() {
   const user = auth.currentUser;
 
   if (!user) {
-    throw new Error('No authenticated user.');
+    throw new Error(
+      "No authenticated user."
+    );
   }
 
-  const userRef = doc(db, 'users', user.uid);
-  const snapshot = await getDoc(userRef);
+  const userRef = doc(
+    db,
+    "users",
+    user.uid
+  );
 
-  const currentYear = getCurrentFinancialYear();
+  const snapshot =
+    await getDoc(userRef);
+
+  const currentYear =
+    getCurrentFinancialYear();
+
+  /* ------------------------------------------
+     USER DOCUMENT DOES NOT EXIST
+  ------------------------------------------ */
 
   if (!snapshot.exists()) {
     await setDoc(
@@ -43,28 +79,107 @@ export async function getFinancialYearSettings() {
       {
         uid: user.uid,
         email: user.email,
-        financialYears: [currentYear],
-        activeFinancialYear: currentYear,
+        financialYears: [
+          currentYear,
+        ],
+        activeFinancialYear:
+          currentYear,
       },
-      { merge: true }
+      {
+        merge: true,
+      }
     );
 
     return {
-      financialYears: [currentYear],
-      activeFinancialYear: currentYear,
+      financialYears: [
+        currentYear,
+      ],
+      activeFinancialYear:
+        currentYear,
     };
   }
 
-  const data = snapshot.data();
+  /* ------------------------------------------
+     USER DOCUMENT EXISTS
+  ------------------------------------------ */
 
-  const financialYears = sortFinancialYears(
-    data.financialYears?.length > 0
+  const data =
+    snapshot.data();
+
+  /*
+    Get saved financial years.
+
+    Also convert an old en dash:
+
+    2025–2026
+
+    into:
+
+    2025-2026
+  */
+
+  const savedYears =
+    Array.isArray(
+      data.financialYears
+    )
       ? data.financialYears
-      : [currentYear]
-  );
+          .map((year) =>
+            String(year)
+              .replace(
+                /[–—]/g,
+                "-"
+              )
+              .trim()
+          )
+          .filter(Boolean)
+      : [];
 
-  const activeFinancialYear =
-    data.activeFinancialYear || currentYear;
+  /*
+    If no financial years exist,
+    create the current financial year.
+  */
+
+const financialYears = sortFinancialYears(
+  savedYears.length > 0
+    ? savedYears
+    : [currentYear]
+);
+
+  /*
+    Get active financial year
+    and normalise it.
+  */
+
+  let activeFinancialYear =
+    data.activeFinancialYear
+      ? String(
+          data.activeFinancialYear
+        )
+          .replace(
+            /[–—]/g,
+            "-"
+          )
+          .trim()
+      : currentYear;
+
+  /*
+    Make sure the active financial
+    year exists in the list.
+  */
+
+  if (
+    !financialYears.includes(
+      activeFinancialYear
+    )
+  ) {
+    activeFinancialYear =
+      financialYears[0];
+  }
+
+  /*
+    Save the cleaned values back
+    to Firebase.
+  */
 
   await setDoc(
     userRef,
@@ -72,7 +187,9 @@ export async function getFinancialYearSettings() {
       financialYears,
       activeFinancialYear,
     },
-    { merge: true }
+    {
+      merge: true,
+    }
   );
 
   return {
@@ -81,59 +198,94 @@ export async function getFinancialYearSettings() {
   };
 }
 
-export async function addFinancialYear(year) {
+/* ======================================================
+   ADD FINANCIAL YEAR
+====================================================== */
+
+export async function addFinancialYear(
+  year
+) {
   const user = auth.currentUser;
 
   if (!user) {
-    throw new Error('No authenticated user.');
+    throw new Error(
+      "No authenticated user."
+    );
   }
 
-  const userRef = doc(db, 'users', user.uid);
-  const snapshot = await getDoc(userRef);
+const normalisedYear = String(year)
+  .replace(/[–—]/g, "-")
+  .trim();
 
-  const existingYears = snapshot.exists()
-    ? snapshot.data().financialYears || []
-    : [];
+const userRef = doc(db, "users", user.uid);
+const snapshot = await getDoc(userRef);
 
-  const financialYears = sortFinancialYears([
-    ...existingYears,
-    year,
-  ]);
+const existingYears = snapshot.exists()
+  ? snapshot.data().financialYears || []
+  : [];
+
+const financialYears = sortFinancialYears([
+  ...existingYears,
+  normalisedYear,
+]);
 
   await setDoc(
     userRef,
     {
       financialYears,
     },
-    { merge: true }
+    {
+      merge: true,
+    }
   );
 }
 
-export async function setActiveFinancialYear(year) {
+/* ======================================================
+   SET ACTIVE FINANCIAL YEAR
+====================================================== */
+
+export async function setActiveFinancialYear(
+  year
+) {
   const user = auth.currentUser;
 
   if (!user) {
-    throw new Error('No authenticated user.');
+    throw new Error(
+      "No authenticated user."
+    );
   }
 
-  const userRef = doc(db, 'users', user.uid);
-  const snapshot = await getDoc(userRef);
+const normalisedYear = String(year)
+  .replace(/[–—]/g, "-")
+  .trim();
 
-  const existingYears = snapshot.exists()
-    ? snapshot.data().financialYears || []
-    : [];
+const userRef = doc(db, "users", user.uid);
+const snapshot = await getDoc(userRef);
 
-  const financialYears = sortFinancialYears([
-    ...existingYears,
-    year,
-  ]);
+const existingYears = snapshot.exists()
+  ? snapshot.data().financialYears || []
+  : [];
+
+const normalisedExistingYears = existingYears.map(
+  (existingYear) =>
+    String(existingYear)
+      .replace(/[–—]/g, "-")
+      .trim()
+);
+
+const financialYears = sortFinancialYears([
+  ...normalisedExistingYears,
+  normalisedYear,
+]);
 
   await setDoc(
     userRef,
     {
-      financialYears,
-      activeFinancialYear: year,
+financialYears,
+activeFinancialYear: normalisedYear,
     },
-    { merge: true }
+    {
+      merge: true,
+    }
   );
 }
