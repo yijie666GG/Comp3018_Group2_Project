@@ -139,6 +139,32 @@ useEffect(() => {
 }, []);
 
   // ======================================================
+  // Categories
+  // ======================================================
+
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [categoryItemIndex, setCategoryItemIndex] = useState<number | null>(null);
+  const [newCategory, setNewCategory] = useState("");
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const savedCategories = await uniqueCategories();
+        const categoryNames = savedCategories
+          .map((category) => category.categoryName?.trim())
+          .filter((name): name is string => Boolean(name));
+
+        setCategories(categoryNames);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  // ======================================================
   // Receipt items
   // ======================================================
 
@@ -150,6 +176,44 @@ useEffect(() => {
       }))
     );
 
+  const openCategoryModal = (index: number) => {
+    setCategoryItemIndex(index);
+    setNewCategory(items[index]?.category ?? "");
+    setCategoryModalVisible(true);
+  };
+
+  const closeCategoryModal = () => {
+    setCategoryModalVisible(false);
+    setCategoryItemIndex(null);
+    setNewCategory("");
+  };
+
+  const selectCategory = (category: string) => {
+    if (categoryItemIndex === null) {
+      return;
+    }
+
+    setItems((currentItems) =>
+      currentItems.map((item, index) =>
+        index === categoryItemIndex
+          ? { ...item, category }
+          : item
+      )
+    );
+
+    closeCategoryModal();
+  };
+
+  const useNewCategory = () => {
+    const cleanCategory = newCategory.trim();
+
+    if (!cleanCategory) {
+      Alert.alert("Category Required", "Please enter a category.");
+      return;
+    }
+
+    selectCategory(cleanCategory);
+  };
 
   // ======================================================
   // Delete item
@@ -748,28 +812,25 @@ useEffect(() => {
                 Category
               </Text>
 
-              <TextInput
-                style={styles.categoryInput}
-                value={item.category ?? ""}
-                onChangeText={(text) => {
-                  setItems((currentItems) =>
-                    currentItems.map(
-                      (currentItem, itemIndex) =>
-                        itemIndex === index
-                          ? {
-                              ...currentItem,
-                              category: text,
-                            }
-                          : currentItem
-                    )
-                  );
-                }}
-                placeholder="Enter category"
-                placeholderTextColor={
-                  colors.mutedText
-                }
-                autoCapitalize="words"
-              />
+              <Pressable
+                style={styles.categorySelector}
+                onPress={() => openCategoryModal(index)}
+              >
+                <Text
+                  style={[
+                    styles.categorySelectorText,
+                    !item.category && styles.categoryPlaceholder,
+                  ]}
+                >
+                  {item.category || "Select or enter category"}
+                </Text>
+
+                <Ionicons
+                  name="chevron-down"
+                  size={18}
+                  color={colors.primary}
+                />
+              </Pressable>
             </View>
           )
         )}
@@ -956,6 +1017,117 @@ useEffect(() => {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* ==================================================
+          CATEGORY MODAL
+      ================================================== */}
+
+      <Modal
+        visible={categoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCategoryModal}
+      >
+        <Pressable
+          style={styles.categoryModalOverlay}
+          onPress={closeCategoryModal}
+        >
+          <Pressable
+            style={styles.categoryModalContent}
+            onPress={() => {}}
+          >
+            <Text style={styles.categoryModalTitle}>
+              Select Category
+            </Text>
+
+            <Text style={styles.categoryModalSubtitle}>
+              Choose an existing category or enter a new one.
+            </Text>
+
+            <ScrollView
+              style={styles.categoryList}
+              keyboardShouldPersistTaps="handled"
+            >
+              {categories.length > 0 ? (
+                categories.map((category) => {
+                  const selected =
+                    categoryItemIndex !== null &&
+                    items[categoryItemIndex]?.category === category;
+
+                  return (
+                    <Pressable
+                      key={category}
+                      style={[
+                        styles.categoryOption,
+                        selected && styles.categoryOptionSelected,
+                      ]}
+                      onPress={() => selectCategory(category)}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryOptionText,
+                          selected && styles.categoryOptionTextSelected,
+                        ]}
+                      >
+                        {category}
+                      </Text>
+
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={colors.primary}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <Text style={styles.noCategoryText}>
+                  No saved categories yet.
+                </Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.categoryDivider} />
+
+            <Text style={styles.categoryNewLabel}>
+              New Category
+            </Text>
+
+            <TextInput
+              style={styles.categoryNewInput}
+              value={newCategory}
+              onChangeText={setNewCategory}
+              placeholder="Enter new category"
+              placeholderTextColor={colors.mutedText}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={useNewCategory}
+            />
+
+            <View style={styles.categoryModalButtons}>
+              <Pressable
+                style={styles.categoryCancelButton}
+                onPress={closeCategoryModal}
+              >
+                <Text style={styles.categoryCancelText}>
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.categoryUseButton}
+                onPress={useNewCategory}
+              >
+                <Text style={styles.categoryUseText}>
+                  Use Category
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ==================================================
@@ -1313,20 +1485,151 @@ const createStyles = (
         colors.secondaryText,
     },
 
-    categoryInput: {
-      height: 48,
+    categorySelector: {
+      minHeight: 48,
       borderWidth: 1,
-      borderColor:
-        colors.border,
+      borderColor: colors.border,
       borderRadius: 12,
       paddingHorizontal: 14,
-      backgroundColor:
-        colors.softBackground,
+      backgroundColor: colors.softBackground,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+
+    categorySelectorText: {
+      flex: 1,
       color: colors.text,
       fontSize: 14,
       fontWeight: "600",
     },
 
+    categoryPlaceholder: {
+      color: colors.mutedText,
+      fontWeight: "500",
+    },
+
+    categoryModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+
+    categoryModalContent: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      maxHeight: "80%",
+    },
+
+    categoryModalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
+
+    categoryModalSubtitle: {
+      marginTop: 5,
+      marginBottom: 14,
+      fontSize: 13,
+      color: colors.secondaryText,
+    },
+
+    categoryList: {
+      maxHeight: 250,
+    },
+
+    categoryOption: {
+      minHeight: 52,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 5,
+    },
+
+    categoryOptionSelected: {
+      backgroundColor: colors.softBackground,
+    },
+
+    categoryOptionText: {
+      color: colors.secondaryText,
+      fontSize: 15,
+      fontWeight: "500",
+    },
+
+    categoryOptionTextSelected: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
+
+    noCategoryText: {
+      color: colors.mutedText,
+      fontSize: 14,
+      textAlign: "center",
+      paddingVertical: 20,
+    },
+
+    categoryDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 16,
+    },
+
+    categoryNewLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.secondaryText,
+      marginBottom: 7,
+    },
+
+    categoryNewInput: {
+      height: 50,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      backgroundColor: colors.softBackground,
+      color: colors.text,
+      fontSize: 15,
+    },
+
+    categoryModalButtons: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 16,
+    },
+
+    categoryCancelButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: colors.softBackground,
+      alignItems: "center",
+    },
+
+    categoryCancelText: {
+      color: colors.secondaryText,
+      fontWeight: "700",
+    },
+
+    categoryUseButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+    },
+
+    categoryUseText: {
+      color: "#FFFFFF",
+      fontWeight: "700",
+    },
 
     emptyCard: {
       paddingVertical: 35,
