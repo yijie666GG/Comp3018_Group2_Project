@@ -20,16 +20,12 @@ import {
   getFinancialYearSettings,
 } from '../../firebase/financial-year';
 
-import { getReceipts, SavedReceipt, SavedReceiptItem, } from '../../services/receiptStorage';
+import {
+  getReceipts,
+  SavedReceiptItem,
+} from '../../services/receiptStorage';
 
 import { useTheme } from '../../theme/ThemeContext';
-
-type displayItems = SavedReceiptItem & {
-  receiptId: string;
-  store: string | null;
-  date: string | null;
-  financialYear: string | null;
-}
 
 export default function ItemsScreen() {
   const { colors } = useTheme();
@@ -54,8 +50,18 @@ export default function ItemsScreen() {
   );
 
   const [search, setSearch] = useState('');
-  const [yearModalVisible, setYearModalVisible] = useState(false);
-  const [items, setItems] = useState<SavedReceiptItem[]>([]);
+
+  const [yearModalVisible, setYearModalVisible] =
+    useState(false);
+
+  const [allItems, setAllItems] = useState<
+    (SavedReceiptItem & {
+      receiptId: string;
+      store: string | null;
+      date: string | null;
+      financialYear: string | null;
+    })[]
+  >([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -71,22 +77,28 @@ export default function ItemsScreen() {
 
           setCategories([
             'All',
-            ...firebaseCat.map((category) =>
-              category.categoryName
-            )
+            ...firebaseCat.map(
+              (category) => category.categoryName
+            ),
           ]);
 
           const receipts = await getReceipts();
 
-          const allItems: SavedReceiptItem[] = receipts.flatMap((receipt) =>
-            receipt.items
+          const flattenedItems = receipts.flatMap(
+            (receipt) =>
+              receipt.items.map((item) => ({
+                ...item,
+                receiptId: receipt.id,
+                store: receipt.store,
+                date: receipt.date,
+                financialYear: receipt.financialYear,
+              }))
           );
 
-          setItems(allItems);
-          
+          setAllItems(flattenedItems);
         } catch (error) {
           console.log(
-            'Load financial years in Items error:',
+            'Load Items error:',
             error
           );
         }
@@ -96,10 +108,29 @@ export default function ItemsScreen() {
     }, [])
   );
 
-  const filteredItems = items.filter((item) =>{
-    const matchesCat = selectedCategory === 'All' || item.category === selectedCategory;
+  const filteredItems = allItems.filter((item) => {
+    const matchesYear =
+      item.financialYear === selectedYear;
 
-    return matchesCat
+    const matchesCategory =
+      selectedCategory === 'All' ||
+      item.category === selectedCategory;
+
+    const searchText = search.trim().toLowerCase();
+
+    const matchesSearch =
+      searchText === '' ||
+      item.name.toLowerCase().includes(searchText) ||
+      item.category.toLowerCase().includes(searchText) ||
+      (item.store ?? '')
+        .toLowerCase()
+        .includes(searchText);
+
+    return (
+      matchesYear &&
+      matchesCategory &&
+      matchesSearch
+    );
   });
 
   return (
@@ -108,11 +139,15 @@ export default function ItemsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Item history</Text>
+        <Text style={styles.title}>
+          Item history
+        </Text>
 
         <TouchableOpacity
           style={styles.yearSelector}
-          onPress={() => setYearModalVisible(true)}
+          onPress={() =>
+            setYearModalVisible(true)
+          }
           activeOpacity={0.7}
         >
           <Text style={styles.yearText}>
@@ -136,13 +171,17 @@ export default function ItemsScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search item, receipt or category..."
-            placeholderTextColor={colors.mutedText}
+            placeholderTextColor={
+              colors.mutedText
+            }
             value={search}
             onChangeText={setSearch}
           />
 
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
+            <TouchableOpacity
+              onPress={() => setSearch('')}
+            >
               <Ionicons
                 name="close-circle"
                 size={19}
@@ -155,25 +194,32 @@ export default function ItemsScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryRow}
+          contentContainerStyle={
+            styles.categoryRow
+          }
         >
           {categories.map((category) => {
-            const active = selectedCategory === category;
+            const active =
+              selectedCategory === category;
 
             return (
               <TouchableOpacity
                 key={category}
                 style={[
                   styles.categoryChip,
-                  active && styles.categoryChipActive,
+                  active &&
+                    styles.categoryChipActive,
                 ]}
-                onPress={() => setSelectedCategory(category)}
+                onPress={() =>
+                  setSelectedCategory(category)
+                }
                 activeOpacity={0.7}
               >
                 <Text
                   style={[
                     styles.categoryText,
-                    active && styles.categoryTextActive,
+                    active &&
+                      styles.categoryTextActive,
                   ]}
                 >
                   {category}
@@ -184,10 +230,16 @@ export default function ItemsScreen() {
         </ScrollView>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Items</Text>
+          <Text style={styles.sectionTitle}>
+            Items
+          </Text>
 
           <TouchableOpacity
-            onPress={() => router.push('/manage-categories')}
+            onPress={() =>
+              router.push(
+                '/manage-categories'
+              )
+            }
             activeOpacity={0.7}
           >
             <Text style={styles.manageText}>
@@ -196,41 +248,101 @@ export default function ItemsScreen() {
           </TouchableOpacity>
         </View>
 
-        {filteredItems.length === 0?(
+        {filteredItems.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
-              <Ionicons name='list-outline' size={30} color={colors.primary}/>
+              <Ionicons
+                name="list-outline"
+                size={30}
+                color={colors.primary}
+              />
             </View>
+
             <Text style={styles.emptyText}>
-              Items from Scanned or uploaded receipts for {selectedYear} will appear here.
+              Items from scanned or uploaded
+              receipts for {selectedYear}
+              will appear here.
             </Text>
+
             {selectedCategory !== 'All' && (
               <Text style={styles.filterText}>
                 Filter: {selectedCategory}
               </Text>
             )}
+
+            {search.trim() !== '' && (
+              <Text style={styles.filterText}>
+                Search: {search}
+              </Text>
+            )}
           </View>
         ) : (
           <View style={styles.itemsContainer}>
-            {filteredItems.map((item,index) => (
-              <View key={`${item.name}-${index}`} style={styles.itemCard} >
-                <View style={styles.itemLeft}>
-                  <View style={styles.itemIcon}>
-                    <Ionicons name='receipt-outline' size={20} color={colors.primary}/>
+            {filteredItems.map(
+              (item, index) => (
+                <View
+                  key={`${item.receiptId}-${item.name}-${index}`}
+                  style={styles.itemCard}
+                >
+                  <View
+                    style={styles.itemLeft}
+                  >
+                    <View
+                      style={styles.itemIcon}
+                    >
+                      <Ionicons
+                        name="receipt-outline"
+                        size={20}
+                        color={
+                          colors.primary
+                        }
+                      />
+                    </View>
+
+                    <View
+                      style={styles.itemInfo}
+                    >
+                      <Text
+                        style={
+                          styles.itemName
+                        }
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.itemCategory
+                        }
+                      >
+                        {item.category}
+                      </Text>
+
+                      {item.store && (
+                        <Text
+                          style={
+                            styles.itemStore
+                          }
+                          numberOfLines={1}
+                        >
+                          {item.store}
+                          {item.date
+                            ? ` • ${item.date}`
+                            : ''}
+                        </Text>
+                      )}
+                    </View>
                   </View>
 
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-
-                    <Text style={styles.itemCategory}>
-                      {item.category}
-                    </Text>
-                  </View>
+                  <Text
+                    style={styles.itemPrice}
+                  >
+                    ${item.price.toFixed(2)}
+                  </Text>
                 </View>
-              </View>
-            ))}
+              )
+            )}
           </View>
         )}
       </ScrollView>
@@ -239,11 +351,15 @@ export default function ItemsScreen() {
         transparent
         visible={yearModalVisible}
         animationType="fade"
-        onRequestClose={() => setYearModalVisible(false)}
+        onRequestClose={() =>
+          setYearModalVisible(false)
+        }
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
+            <Text
+              style={styles.modalTitle}
+            >
               Select financial year
             </Text>
 
@@ -253,16 +369,31 @@ export default function ItemsScreen() {
                 style={styles.yearOption}
                 onPress={() => {
                   setSelectedYear(year);
-                  setYearModalVisible(false);
+                  setSelectedCategory('All');
+                  setYearModalVisible(
+                    false
+                  );
                 }}
               >
-                <Text style={styles.yearOptionText}>
+                <Text
+                  style={
+                    styles.yearOptionText
+                  }
+                >
                   {year}
                 </Text>
 
-                <View style={styles.yearOptionRight}>
+                <View
+                  style={
+                    styles.yearOptionRight
+                  }
+                >
                   {activeYear === year && (
-                    <Text style={styles.activeYearText}>
+                    <Text
+                      style={
+                        styles.activeYearText
+                      }
+                    >
                       Active
                     </Text>
                   )}
@@ -271,7 +402,9 @@ export default function ItemsScreen() {
                     <Ionicons
                       name="checkmark"
                       size={20}
-                      color={colors.primary}
+                      color={
+                        colors.primary
+                      }
                     />
                   )}
                 </View>
@@ -280,9 +413,15 @@ export default function ItemsScreen() {
 
             <TouchableOpacity
               style={styles.cancelButton}
-              onPress={() => setYearModalVisible(false)}
+              onPress={() =>
+                setYearModalVisible(
+                  false
+                )
+              }
             >
-              <Text style={styles.cancelText}>
+              <Text
+                style={styles.cancelText}
+              >
                 Cancel
               </Text>
             </TouchableOpacity>
@@ -335,7 +474,8 @@ const createStyles = (colors: any) =>
     searchBox: {
       height: 52,
       borderRadius: 16,
-      backgroundColor: colors.softBackground,
+      backgroundColor:
+        colors.softBackground,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,
@@ -366,7 +506,8 @@ const createStyles = (colors: any) =>
     },
 
     categoryChipActive: {
-      backgroundColor: colors.primarySoft,
+      backgroundColor:
+        colors.primarySoft,
       borderColor: colors.primary,
     },
 
@@ -399,56 +540,67 @@ const createStyles = (colors: any) =>
       fontWeight: '700',
     },
 
-    itemsContainer: { gap: 10, },
-    
-    itemCard: { 
-      minHeight: 72, 
-      borderWidth: 1, 
-      borderColor: colors.border, 
-      borderRadius: 16, 
-      paddingHorizontal: 14, 
-      paddingVertical: 12, 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      justifyContent: 'space-between', 
-      backgroundColor: colors.card, 
+    itemsContainer: {
+      gap: 10,
     },
 
-    itemLeft: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      flex: 1, 
-    }, 
-    
-    itemIcon: { 
-      width: 42, 
-      height: 42, 
-      borderRadius: 13, 
-      backgroundColor: colors.primarySoft, 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      marginRight: 12, 
-    }, 
-    
-    itemInfo: { flex: 1, }, 
-    
-    itemName: { 
-      fontSize: 15, 
-      fontWeight: '800', 
-      color: colors.text, 
-    }, 
-      
-    itemCategory: { 
-      marginTop: 4, 
-      fontSize: 12, 
-      color: colors.secondaryText, 
-    }, 
-      
-    itemPrice: { 
-      marginLeft: 12, 
-      fontSize: 15, 
-      fontWeight: '800', 
-      color: colors.text, 
+    itemCard: {
+      minHeight: 72,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+    },
+
+    itemLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+
+    itemIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor:
+        colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+
+    itemInfo: {
+      flex: 1,
+    },
+
+    itemName: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
+
+    itemCategory: {
+      marginTop: 4,
+      fontSize: 12,
+      color: colors.secondaryText,
+    },
+
+    itemStore: {
+      marginTop: 3,
+      fontSize: 11,
+      color: colors.mutedText,
+    },
+
+    itemPrice: {
+      marginLeft: 12,
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
     },
 
     emptyCard: {
@@ -465,16 +617,11 @@ const createStyles = (colors: any) =>
       width: 52,
       height: 52,
       borderRadius: 16,
-      backgroundColor: colors.primarySoft,
+      backgroundColor:
+        colors.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 12,
-    },
-
-    emptyTitle: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: colors.text,
     },
 
     emptyText: {
@@ -495,7 +642,8 @@ const createStyles = (colors: any) =>
 
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+      backgroundColor:
+        'rgba(0, 0, 0, 0.55)',
       justifyContent: 'center',
       paddingHorizontal: 28,
     },
@@ -545,7 +693,8 @@ const createStyles = (colors: any) =>
       marginTop: 16,
       height: 46,
       borderRadius: 13,
-      backgroundColor: colors.softBackground,
+      backgroundColor:
+        colors.softBackground,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -554,4 +703,5 @@ const createStyles = (colors: any) =>
       color: colors.primary,
       fontWeight: '800',
     },
-  });
+  }
+);
