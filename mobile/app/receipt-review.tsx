@@ -362,7 +362,7 @@ export default function ReceiptReview() {
             date:
               originalReceipt.date,
 
-            financialYear,
+            financialYear: financialYear,
 
             time:
               originalReceipt.time,
