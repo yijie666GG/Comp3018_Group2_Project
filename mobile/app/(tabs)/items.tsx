@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { uniqueCategories } from '../../firebase/categories';
 
 import {
   View,
@@ -19,17 +20,16 @@ import {
   getFinancialYearSettings,
 } from '../../firebase/financial-year';
 
+import { getReceipts, SavedReceipt, SavedReceiptItem, } from '../../services/receiptStorage';
+
 import { useTheme } from '../../theme/ThemeContext';
 
-const categories = [
-  'All',
-  'Work',
-  'Travel',
-  'Equipment',
-  'Education',
-  'Home Office',
-  'Technology',
-];
+type displayItems = SavedReceiptItem & {
+  receiptId: string;
+  store: string | null;
+  date: string | null;
+  financialYear: string | null;
+}
 
 export default function ItemsScreen() {
   const { colors } = useTheme();
@@ -38,6 +38,8 @@ export default function ItemsScreen() {
   const currentFinancialYear = getCurrentFinancialYear();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const [categories, setCategories] = useState<string[]>(['All']);
 
   const [financialYears, setFinancialYears] = useState([
     currentFinancialYear,
@@ -53,19 +55,35 @@ export default function ItemsScreen() {
 
   const [search, setSearch] = useState('');
   const [yearModalVisible, setYearModalVisible] = useState(false);
+  const [items, setItems] = useState<SavedReceiptItem[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      const loadFinancialYears = async () => {
+      const loadData = async () => {
         try {
           const settings = await getFinancialYearSettings();
 
           setFinancialYears(settings.financialYears);
           setActiveYear(settings.activeFinancialYear);
-
-          // Items starts on the user's active financial year.
-          // Changing the year inside Items does NOT change Firestore.
           setSelectedYear(settings.activeFinancialYear);
+
+          const firebaseCat = await uniqueCategories();
+
+          setCategories([
+            'All',
+            ...firebaseCat.map((category) =>
+              category.categoryName
+            )
+          ]);
+
+          const receipts = await getReceipts();
+
+          const allItems: SavedReceiptItem[] = receipts.flatMap((receipt) =>
+            receipt.items
+          );
+
+          setItems(allItems);
+          
         } catch (error) {
           console.log(
             'Load financial years in Items error:',
@@ -74,9 +92,15 @@ export default function ItemsScreen() {
         }
       };
 
-      loadFinancialYears();
+      loadData();
     }, [])
   );
+
+  const filteredItems = items.filter((item) =>{
+    const matchesCat = selectedCategory === 'All' || item.category === selectedCategory;
+
+    return matchesCat
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -172,29 +196,43 @@ export default function ItemsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIcon}>
-            <Ionicons
-              name="list-outline"
-              size={30}
-              color={colors.primary}
-            />
-          </View>
-
-          <Text style={styles.emptyTitle}>
-            No items saved
-          </Text>
-
-          <Text style={styles.emptyText}>
-            Items from scanned or uploaded receipts for {selectedYear} will appear here.
-          </Text>
-
-          {selectedCategory !== 'All' && (
-            <Text style={styles.filterText}>
-              Filter: {selectedCategory}
+        {filteredItems.length === 0?(
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name='list-outline' size={30} color={colors.primary}/>
+            </View>
+            <Text style={styles.emptyText}>
+              Items from Scanned or uploaded receipts for {selectedYear} will appear here.
             </Text>
-          )}
-        </View>
+            {selectedCategory !== 'All' && (
+              <Text style={styles.filterText}>
+                Filter: {selectedCategory}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.itemsContainer}>
+            {filteredItems.map((item,index) => (
+              <View key={`${item.name}-${index}`} style={styles.itemCard} >
+                <View style={styles.itemLeft}>
+                  <View style={styles.itemIcon}>
+                    <Ionicons name='receipt-outline' size={20} color={colors.primary}/>
+                  </View>
+
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+
+                    <Text style={styles.itemCategory}>
+                      {item.category}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <Modal
@@ -359,6 +397,58 @@ const createStyles = (colors: any) =>
       color: colors.primary,
       fontSize: 13,
       fontWeight: '700',
+    },
+
+    itemsContainer: { gap: 10, },
+    
+    itemCard: { 
+      minHeight: 72, 
+      borderWidth: 1, 
+      borderColor: colors.border, 
+      borderRadius: 16, 
+      paddingHorizontal: 14, 
+      paddingVertical: 12, 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'space-between', 
+      backgroundColor: colors.card, 
+    },
+
+    itemLeft: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      flex: 1, 
+    }, 
+    
+    itemIcon: { 
+      width: 42, 
+      height: 42, 
+      borderRadius: 13, 
+      backgroundColor: colors.primarySoft, 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      marginRight: 12, 
+    }, 
+    
+    itemInfo: { flex: 1, }, 
+    
+    itemName: { 
+      fontSize: 15, 
+      fontWeight: '800', 
+      color: colors.text, 
+    }, 
+      
+    itemCategory: { 
+      marginTop: 4, 
+      fontSize: 12, 
+      color: colors.secondaryText, 
+    }, 
+      
+    itemPrice: { 
+      marginLeft: 12, 
+      fontSize: 15, 
+      fontWeight: '800', 
+      color: colors.text, 
     },
 
     emptyCard: {
