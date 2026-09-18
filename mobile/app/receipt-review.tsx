@@ -1,6 +1,14 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import { saveReceipt } from "../services/receiptStorage";
 import { addCategory, uniqueCategories } from "../firebase/categories";
+
+import {
+  getFinancialYearSettings,
+} from "../firebase/financial-year";
 
 import {
   View,
@@ -82,82 +90,53 @@ export default function ReceiptReview() {
         items: [],
       };
 
-  // ======================================================
-  // Financial Year
-  // ======================================================
+// ======================================================
+// Financial Year
+// ======================================================
 
-  const getFinancialYearFromDate = (
-    date: string | null
-  ): string => {
-    const currentDate = new Date();
+const [
+  financialYears,
+  setFinancialYears,
+] = useState<string[]>([]);
 
-    if (!date) {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
+const [
+  financialYear,
+  setFinancialYear,
+] = useState<string>("");
 
-      return month >= 7
-        ? `${year}-${year + 1}`
-        : `${year - 1}-${year}`;
+const [
+  financialYearModalVisible,
+  setFinancialYearModalVisible,
+] = useState(false);
+
+useEffect(() => {
+  const loadFinancialYears = async () => {
+    try {
+      const settings =
+        await getFinancialYearSettings();
+
+      setFinancialYears(
+        settings.financialYears
+      );
+
+      setFinancialYear(
+        settings.activeFinancialYear
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load financial years:",
+        error
+      );
+
+      Alert.alert(
+        "Financial Years",
+        "Unable to load your financial years."
+      );
     }
-
-    const parts = date.split(/[./-]/);
-
-    if (parts.length >= 3) {
-      const month = Number(parts[1]);
-      let year = Number(parts[2]);
-
-      if (year < 100) {
-        year += 2000;
-      }
-
-      if (
-        Number.isFinite(month) &&
-        Number.isFinite(year) &&
-        month >= 1 &&
-        month <= 12
-      ) {
-        return month >= 7
-          ? `${year}-${year + 1}`
-          : `${year - 1}-${year}`;
-      }
-    }
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-
-    return month >= 7
-      ? `${year}-${year + 1}`
-      : `${year - 1}-${year}`;
   };
 
-  const defaultFinancialYear =
-    getFinancialYearFromDate(
-      originalReceipt.date
-    );
-
-  const [
-    financialYear,
-    setFinancialYear,
-  ] = useState(defaultFinancialYear);
-
-  const [
-    financialYearModalVisible,
-    setFinancialYearModalVisible,
-  ] = useState(false);
-
-  const defaultStartYear = Number(
-    defaultFinancialYear.split("-")[0]
-  );
-
-  const financialYears = Array.from(
-    { length: 7 },
-    (_, index) => {
-      const startYear =
-        defaultStartYear + 3 - index;
-
-      return `${startYear}-${startYear + 1}`;
-    }
-  );
+  loadFinancialYears();
+}, []);
 
   // ======================================================
   // Receipt items
@@ -394,7 +373,7 @@ export default function ReceiptReview() {
               text: "OK",
               onPress: () =>
                 router.replace(
-                  "/(tabs)/scan"
+                  "/(tabs)/home"
                 ),
             },
           ]
@@ -525,7 +504,8 @@ export default function ReceiptReview() {
                   styles.financialYearValue
                 }
               >
-                {financialYear}
+                {financialYear ||
+                  "Select financial year"}
               </Text>
 
               <Ionicons
