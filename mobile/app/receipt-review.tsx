@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { saveReceipt } from "../services/receiptStorage";
+import { addCategory, uniqueCategories } from "../firebase/categories";
 
 import {
   View,
@@ -332,6 +333,27 @@ export default function ReceiptReview() {
       }
 
       try {
+        const existingCategory = await uniqueCategories();
+
+        for(const item of items){
+          const name = item.category?.trim();
+          
+          if(!name){
+            continue
+          }
+
+          const alreadyExists =  existingCategory.some((category) =>
+            category.categoryName.toLowerCase() === name.toLowerCase()
+          );
+
+          if(!alreadyExists){
+            const addedCategory = await addCategory(name);
+            if(addedCategory){
+              existingCategory.push(addedCategory);
+            }
+          }
+        }
+
         await saveReceipt(
           {
             store:
