@@ -394,7 +394,7 @@ export default function ReceiptReview() {
               text: "OK",
               onPress: () =>
                 router.replace(
-                  "/(tabs)/scan"
+                  "/(tabs)/home"
                 ),
             },
           ]
