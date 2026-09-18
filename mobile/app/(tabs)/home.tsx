@@ -17,9 +17,8 @@ import {
   getDoc,
   collection,
   getDocs,
-  orderBy,
   query,
-  limit,
+  where,
 } from 'firebase/firestore';
 
 import { auth, db } from '../../firebase/firebase';
@@ -36,10 +35,12 @@ type Receipt = {
   store?: string;
   date?: string;
   time?: string;
+  financialYear?: string | null;
   total?: number;
   gst?: number;
   items?: any[];
   imageUrl?: string;
+  createdAt?: Date | null;
 };
 
 export default function HomeScreen() {
@@ -65,23 +66,35 @@ export default function HomeScreen() {
           const user = auth.currentUser;
 
           if (!user) {
+            setRecentReceipts([]);
+            setTotalExpenses(0);
+            setItemSaved(0);
             return;
           }
 
-          // Get current financial year
           const settings = await getFinancialYearSettings();
-          setFinancialYear(settings.activeFinancialYear);
 
-          // Get user information
-          const userRef = doc(db, 'users', user.uid);
-          const snapshot = await getDoc(userRef);
+          const activeFinancialYear =
+            settings.activeFinancialYear;
 
-          if (snapshot.exists()) {
-            const data = snapshot.data();
+          setFinancialYear(activeFinancialYear);
+
+          const userRef = doc(
+            db,
+            'users',
+            user.uid
+          );
+
+          const userSnapshot =
+            await getDoc(userRef);
+
+          if (userSnapshot.exists()) {
+            const data =
+              userSnapshot.data();
+
             setName(data.name || '');
           }
 
-          // Reference to user's receipts
           const receiptRef = collection(
             db,
             'users',
@@ -89,52 +102,126 @@ export default function HomeScreen() {
             'receipts'
           );
 
-          // Get all receipts
-          const receiptSnapshot = await getDocs(receiptRef);
-
-          // Number of receipts saved
-          setItemSaved(receiptSnapshot.size);
-
-          // Calculate total expenses
-          let total = 0;
-
-          receiptSnapshot.forEach((receipt) => {
-            const data = receipt.data();
-
-            total += Number(data.total) || 0;
-          });
-
-          setTotalExpenses(total);
-
-          // Get most recent receipt
-          const recentQuery = query(
+          const financialYearQuery = query(
             receiptRef,
-            orderBy('createdAt', 'desc'),
-            limit(5)
+            where(
+              'financialYear',
+              '==',
+              activeFinancialYear
+            )
           );
 
-          const recentSnapshot = await getDocs(recentQuery);
+          const receiptSnapshot =
+            await getDocs(
+              financialYearQuery
+            );
 
-          const showRecent: Receipt[] = recentSnapshot.docs.map(
+          setItemSaved(
+            receiptSnapshot.size
+          );
+
+          let total = 0;
+
+          receiptSnapshot.forEach(
             (receipt) => {
-              const data = receipt.data();
+              const data =
+                receipt.data();
 
-              return {
-                id: receipt.id,
-                store: data.store,
-                date: data.date,
-                time: data.time,
-                items: data.items,
-                total: Number(data.total) || 0,
-                gst: Number(data.gst) || 0,
-                imageUrl: data.imageUrl,
-              };
+              total +=
+                Number(data.total) || 0;
             }
           );
 
-          setRecentReceipts(showRecent);
+          setTotalExpenses(total);
+
+          const allReceipts: Receipt[] =
+            receiptSnapshot.docs.map(
+              (receipt) => {
+                const data =
+                  receipt.data();
+
+                let createdAt:
+                  | Date
+                  | null = null;
+
+                if (
+                  data.createdAt?.toDate
+                ) {
+                  createdAt =
+                    data.createdAt.toDate();
+                }
+
+                return {
+                  id: receipt.id,
+
+                  store:
+                    typeof data.store ===
+                    'string'
+                      ? data.store
+                      : undefined,
+
+                  date:
+                    typeof data.date ===
+                    'string'
+                      ? data.date
+                      : undefined,
+
+                  time:
+                    typeof data.time ===
+                    'string'
+                      ? data.time
+                      : undefined,
+
+                  financialYear:
+                    typeof data.financialYear ===
+                    'string'
+                      ? data.financialYear
+                      : null,
+
+                  total:
+                    Number(data.total) || 0,
+
+                  gst:
+                    Number(data.gst) || 0,
+
+                  items:
+                    Array.isArray(data.items)
+                      ? data.items
+                      : [],
+
+                  imageUrl:
+                    typeof data.imageUrl ===
+                    'string'
+                      ? data.imageUrl
+                      : undefined,
+
+                  createdAt,
+                };
+              }
+            );
+
+          allReceipts.sort(
+            (a, b) => {
+              const timeA =
+                a.createdAt?.getTime() || 0;
+
+              const timeB =
+                b.createdAt?.getTime() || 0;
+
+              return timeB - timeA;
+            }
+          );
+
+          setRecentReceipts(
+            allReceipts.slice(0, 5)
+          );
         } catch (error) {
-          console.log('Load home data error:', error);
+          console.error(
+            'Load home data error:',
+            error
+          );
+
+          setRecentReceipts([]);
         } finally {
           setLoading(false);
         }
@@ -150,7 +237,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
@@ -171,7 +257,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* FINANCIAL YEAR CARD */}
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>
             Current financial year
@@ -204,7 +289,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* QUICK ACTIONS */}
         <Text style={styles.sectionTitle}>
           Quick actions
         </Text>
@@ -212,7 +296,9 @@ export default function HomeScreen() {
         <View style={styles.grid}>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/scan')}
+            onPress={() =>
+              router.push('/(tabs)/scan')
+            }
             activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
@@ -234,7 +320,9 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/manage-categories')}
+            onPress={() =>
+              router.push('/manage-categories')
+            }
             activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
@@ -256,7 +344,9 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/items')}
+            onPress={() =>
+              router.push('/(tabs)/items')
+            }
             activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
@@ -278,7 +368,9 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/summary')}
+            onPress={() =>
+              router.push('/(tabs)/summary')
+            }
             activeOpacity={0.7}
           >
             <View style={styles.iconBox}>
@@ -299,7 +391,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* RECENT ITEMS */}
         <Text style={styles.sectionTitle}>
           Recent items
         </Text>
@@ -325,47 +416,67 @@ export default function HomeScreen() {
             </Text>
 
             <Text style={styles.emptyText}>
-              Scan or add a receipt to start tracking your expenses.
+              Scan or add a receipt to start
+              tracking your expenses.
             </Text>
           </View>
         ) : (
-          recentReceipt.map((receipt) => (
-            <View
-              key={receipt.id}
-              style={styles.receiptCard}
-            >
-              {/* RECEIPT ICON */}
-              <View style={styles.receiptIcon}>
-                <Ionicons
-                  name="receipt-outline"
-                  size={22}
-                  color={colors.primary}
-                />
-              </View>
-
-              {/* RECEIPT INFORMATION */}
-              <View style={styles.receiptInfo}>
-                <Text
-                  style={styles.receiptStore}
-                  numberOfLines={1}
+          recentReceipt.map(
+            (receipt) => (
+              <View
+                key={receipt.id}
+                style={styles.receiptCard}
+              >
+                <View
+                  style={styles.receiptIcon}
                 >
-                  {receipt.store || 'Unknown store'}
-                </Text>
+                  <Ionicons
+                    name="receipt-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </View>
 
-                <Text style={styles.receiptDate}>
-                  {receipt.date || 'No date'}
-                  {receipt.time
-                    ? ` • ${receipt.time}`
-                    : ''}
+                <View
+                  style={styles.receiptInfo}
+                >
+                  <Text
+                    style={
+                      styles.receiptStore
+                    }
+                    numberOfLines={1}
+                  >
+                    {receipt.store ||
+                      'Unknown store'}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.receiptDate
+                    }
+                  >
+                    {receipt.date ||
+                      'No date'}
+
+                    {receipt.time
+                      ? ` • ${receipt.time}`
+                      : ''}
+                  </Text>
+                </View>
+
+                <Text
+                  style={
+                    styles.receiptTotal
+                  }
+                >
+                  $
+                  {(receipt.total || 0).toFixed(
+                    2
+                  )}
                 </Text>
               </View>
-
-              {/* RECEIPT TOTAL */}
-              <Text style={styles.receiptTotal}>
-                ${(receipt.total || 0).toFixed(2)}
-              </Text>
-            </View>
-          ))
+            )
+          )
         )}
       </ScrollView>
     </SafeAreaView>
@@ -385,7 +496,6 @@ const createStyles = (colors: any) =>
       paddingBottom: 110,
     },
 
-    // HEADER
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -414,7 +524,6 @@ const createStyles = (colors: any) =>
       justifyContent: 'center',
     },
 
-    // HERO CARD
     heroCard: {
       backgroundColor: colors.primary,
       borderRadius: 22,
@@ -452,7 +561,6 @@ const createStyles = (colors: any) =>
       fontWeight: '800',
     },
 
-    // SECTION
     sectionTitle: {
       fontSize: 18,
       fontWeight: '800',
@@ -460,7 +568,6 @@ const createStyles = (colors: any) =>
       marginBottom: 14,
     },
 
-    // QUICK ACTION GRID
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -501,7 +608,6 @@ const createStyles = (colors: any) =>
       color: colors.secondaryText,
     },
 
-    // EMPTY STATE
     emptyCard: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -536,7 +642,6 @@ const createStyles = (colors: any) =>
       marginTop: 4,
     },
 
-    // RECENT RECEIPT
     receiptCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -580,4 +685,5 @@ const createStyles = (colors: any) =>
       fontWeight: '800',
       color: colors.text,
     },
-  });
+  }
+);
