@@ -408,9 +408,9 @@ export default function Summary() {
   const [
     selectedYear,
     setSelectedYear,
-  ] = useState<FinancialYear>(
-    "2026-2027"
-  );
+  ] = useState<FinancialYear>("");
+    
+  
 
   /* ====================================================
      RECEIPTS
@@ -461,107 +461,160 @@ export default function Summary() {
      LOAD SUMMARY
   ==================================================== */
 
-  const loadSummary =
-    async () => {
-      try {
-        setLoading(true);
+const loadSummary = async () => {
+  try {
+    setLoading(true);
 
-        /* --------------------------------------------
-           LOAD RECEIPTS
-        -------------------------------------------- */
+    /* --------------------------------------------
+       LOAD RECEIPTS
+    -------------------------------------------- */
 
-        const savedReceipts =
-          await getReceipts();
+    const savedReceipts = await getReceipts();
 
-        setReceipts(
-          savedReceipts
-        );
+    setReceipts(savedReceipts);
 
-        console.log(
-          "SUMMARY RECEIPTS:",
-          savedReceipts
-        );
+    console.log(
+      "SUMMARY RECEIPTS:",
+      savedReceipts
+    );
 
-        /* --------------------------------------------
-           LOAD FINANCIAL YEARS
-        -------------------------------------------- */
+    /* --------------------------------------------
+       LOAD FINANCIAL YEAR SETTINGS
+    -------------------------------------------- */
 
-        const settings =
-          await getFinancialYearSettings();
+    const settings =
+      await getFinancialYearSettings();
 
-        const loadedYears =
-          (
-            settings.financialYears ??
-            []
-          )
-            .map(
-              (year) =>
-                normaliseFinancialYear(
-                  year
-                )
-            )
-            .filter(
-              Boolean
-            );
+    /* --------------------------------------------
+       GET YEARS FROM FINANCIAL YEAR SETTINGS
+    -------------------------------------------- */
 
-        const uniqueYears =
-          [
-            ...new Set(
-              loadedYears
-            ),
-          ];
+    const settingYears =
+      (settings.financialYears ?? [])
+        .map((year) =>
+          normaliseFinancialYear(year)
+        )
+        .filter(Boolean);
 
-        setFinancialYears(
-          uniqueYears
-        );
+    /* --------------------------------------------
+       GET FINANCIAL YEARS DIRECTLY FROM RECEIPTS
 
-        console.log(
-          "SUMMARY FINANCIAL YEARS:",
-          uniqueYears
-        );
+       This makes sure that a receipt's financial
+       year appears in the Summary even if that
+       year has not been manually added yet.
+    -------------------------------------------- */
 
-        /* --------------------------------------------
-           SET ACTIVE YEAR
-        -------------------------------------------- */
+    const receiptYears =
+      savedReceipts
+        .map((receipt) => {
+          const dateToUse =
+            receipt.date ??
+            receipt.createdAt;
 
-        const activeYear =
-          normaliseFinancialYear(
-            settings.activeFinancialYear
+          return normaliseFinancialYear(
+            getFinancialYear(dateToUse)
           );
+        })
+        .filter(Boolean);
 
-        if (
-          activeYear &&
-          uniqueYears.includes(
-            activeYear
-          )
-        ) {
-          setSelectedYear(
-            activeYear
-          );
-        } else if (
-          uniqueYears.length >
-          0
-        ) {
-          setSelectedYear(
-            uniqueYears[0]
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Failed to load Summary:",
-          error
-        );
+    /* --------------------------------------------
+       COMBINE BOTH SOURCES
 
-        setReceipts([]);
+       Financial Year Settings
+       +
+       Receipt Financial Years
+    -------------------------------------------- */
 
-        Alert.alert(
-          "Summary Error",
-          "Unable to load your summary."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    const uniqueYears = [
+      ...new Set([
+        ...settingYears,
+        ...receiptYears,
+      ]),
+    ].sort((a, b) => {
+      const startYearA =
+        Number(a.split("-")[0]);
+
+      const startYearB =
+        Number(b.split("-")[0]);
+
+      return startYearB - startYearA;
+    });
+
+    setFinancialYears(uniqueYears);
+
+    console.log(
+      "SUMMARY FINANCIAL YEARS:",
+      uniqueYears
+    );
+
+    /* --------------------------------------------
+       SELECT THE CORRECT FINANCIAL YEAR
+
+       First preference:
+       user's active financial year.
+
+       If the active year has no receipts,
+       choose the first year that actually
+       contains receipt data.
+    -------------------------------------------- */
+
+    const activeYear =
+      normaliseFinancialYear(
+        settings.activeFinancialYear
+      );
+
+    const yearsWithReceipts = [
+      ...new Set(receiptYears),
+    ];
+
+    if (
+      activeYear &&
+      uniqueYears.includes(activeYear) &&
+      yearsWithReceipts.includes(activeYear)
+    ) {
+      setSelectedYear(activeYear);
+    } else if (
+      yearsWithReceipts.length > 0
+    ) {
+      setSelectedYear(
+        yearsWithReceipts[0]
+      );
+    } else if (
+      activeYear &&
+      uniqueYears.includes(activeYear)
+    ) {
+      setSelectedYear(activeYear);
+    } else if (
+      uniqueYears.length > 0
+    ) {
+      setSelectedYear(
+        uniqueYears[0]
+      );
+    } else {
+      setSelectedYear("");
+    }
+
+    console.log(
+      "SUMMARY SELECTED YEAR:",
+      activeYear
+    );
+
+  } catch (error) {
+    console.error(
+      "Failed to load Summary:",
+      error
+    );
+
+    setReceipts([]);
+
+    Alert.alert(
+      "Summary Error",
+      "Unable to load your summary."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   /* ====================================================
      REFRESH WHEN SCREEN OPENS
