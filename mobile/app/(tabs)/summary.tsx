@@ -559,40 +559,28 @@ const loadSummary = async () => {
     -------------------------------------------- */
 
     const activeYear =
-      normaliseFinancialYear(
-        settings.activeFinancialYear
-      );
+  normaliseFinancialYear(
+    settings.activeFinancialYear
+  );
 
-    const yearsWithReceipts = [
-      ...new Set(receiptYears),
-    ];
+const yearsWithReceipts = [
+  ...new Set(receiptYears),
+];
 
-    if (
-      activeYear &&
-      uniqueYears.includes(activeYear) &&
-      yearsWithReceipts.includes(activeYear)
-    ) {
-      setSelectedYear(activeYear);
-    } else if (
-      yearsWithReceipts.length > 0
-    ) {
-      setSelectedYear(
-        yearsWithReceipts[0]
-      );
-    } else if (
-      activeYear &&
-      uniqueYears.includes(activeYear)
-    ) {
-      setSelectedYear(activeYear);
-    } else if (
-      uniqueYears.length > 0
-    ) {
-      setSelectedYear(
-        uniqueYears[0]
-      );
-    } else {
-      setSelectedYear("");
-    }
+if (activeYear) {
+  const yearsWithActiveYear = uniqueYears.includes(activeYear)
+    ? uniqueYears
+    : [...uniqueYears, activeYear];
+
+  setFinancialYears(yearsWithActiveYear);
+  setSelectedYear(activeYear);
+} else if (yearsWithReceipts.length > 0) {
+  setSelectedYear(yearsWithReceipts[0]);
+} else if (uniqueYears.length > 0) {
+  setSelectedYear(uniqueYears[0]);
+} else {
+  setSelectedYear("");
+}
 
     console.log(
       "SUMMARY SELECTED YEAR:",
@@ -775,55 +763,27 @@ const loadSummary = async () => {
      FILTER RECEIPTS BY FINANCIAL YEAR
   ==================================================== */
 
-  const filteredReceipts =
-    useMemo(() => {
-      const normalisedSelectedYear =
-        normaliseFinancialYear(
-          selectedYear
-        );
-
-      return uniqueReceipts.filter(
-        (receipt) => {
-          const dateToUse =
-            receipt.date ??
-            receipt.createdAt;
-
-          const receiptYear =
-            normaliseFinancialYear(
-              getFinancialYear(
-                dateToUse
-              )
-            );
-
-          const matches =
-            receiptYear ===
-            normalisedSelectedYear;
-
-          console.log(
-            "SUMMARY CHECK:",
-            {
-              store:
-                receipt.store,
-
-              date:
-                dateToUse,
-
-              receiptYear,
-
-              selectedYear:
-                normalisedSelectedYear,
-
-              matches,
-            }
-          );
-
-          return matches;
-        }
+ const filteredReceipts = useMemo(() => {
+  return uniqueReceipts.filter((receipt) => {
+    const receiptYear =
+      receipt.financialYear ??
+      getFinancialYear(
+        receipt.date ?? receipt.createdAt
       );
-    }, [
-      uniqueReceipts,
-      selectedYear,
-    ]);
+
+    return (
+      normaliseFinancialYear(
+        receiptYear
+      ) ===
+      normaliseFinancialYear(
+        selectedYear
+      )
+    );
+  });
+}, [
+  uniqueReceipts,
+  selectedYear,
+]);
 
   /* ====================================================
      TOTAL EXPENSES
