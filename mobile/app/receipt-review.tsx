@@ -109,19 +109,170 @@ const [
   setFinancialYearModalVisible,
 ] = useState(false);
 
+/*
+======================================================
+Calculate Australian financial year from receipt date
+======================================================
+*/
+
+const getFinancialYearFromDate = (
+  dateString: string | null
+): string | null => {
+  if (!dateString) {
+    return null;
+  }
+
+  let date: Date | null = null;
+
+  /*
+    Australian receipt format:
+
+    DD/MM/YYYY
+
+    Example:
+    02/01/2021
+    = 2 January 2021
+    = financial year 2020-2021
+  */
+
+  const slashMatch = dateString.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+  );
+
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]);
+    const year = Number(slashMatch[3]);
+
+    date = new Date(
+      year,
+      month - 1,
+      day
+    );
+  }
+
+  /*
+    ISO format:
+
+    YYYY-MM-DD
+  */
+
+  if (!date) {
+    const isoMatch = dateString.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+    );
+
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]);
+      const day = Number(isoMatch[3]);
+
+      date = new Date(
+        year,
+        month - 1,
+        day
+      );
+    }
+  }
+
+  /*
+    Fallback for other valid date strings
+  */
+
+  if (!date) {
+    const parsedDate = new Date(dateString);
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      date = parsedDate;
+    }
+  }
+
+  if (
+    !date ||
+    Number.isNaN(date.getTime())
+  ) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  /*
+    Australian financial year:
+
+    1 July -> 30 June
+  */
+
+  return month >= 6
+    ? `${year}-${year + 1}`
+    : `${year - 1}-${year}`;
+};
+
+/*
+======================================================
+Load financial years
+======================================================
+*/
+
 useEffect(() => {
   const loadFinancialYears = async () => {
     try {
       const settings =
         await getFinancialYearSettings();
 
+      const receiptFinancialYear =
+        getFinancialYearFromDate(
+          originalReceipt.date
+        );
+
+      /*
+        Start with the financial years
+        already created by the user.
+      */
+
+      const availableYears = [
+        ...settings.financialYears,
+      ];
+
+      /*
+        Make sure the receipt's automatically
+        detected financial year is also available
+        in the dropdown.
+      */
+
+      if (
+        receiptFinancialYear &&
+        !availableYears.includes(
+          receiptFinancialYear
+        )
+      ) {
+        availableYears.push(
+          receiptFinancialYear
+        );
+      }
+
       setFinancialYears(
-        settings.financialYears
+        availableYears
       );
 
-      setFinancialYear(
-        settings.activeFinancialYear
-      );
+      /*
+        DEFAULT:
+        Use the financial year calculated
+        from the receipt date.
+
+        The user can then manually change
+        this using the dropdown.
+      */
+
+      if (receiptFinancialYear) {
+        setFinancialYear(
+          receiptFinancialYear
+        );
+      } else {
+        setFinancialYear(
+          settings.activeFinancialYear
+        );
+      }
     } catch (error) {
       console.error(
         "Failed to load financial years:",
@@ -136,7 +287,7 @@ useEffect(() => {
   };
 
   loadFinancialYears();
-}, []);
+}, [originalReceipt.date]);
 
   // ======================================================
   // Receipt items
