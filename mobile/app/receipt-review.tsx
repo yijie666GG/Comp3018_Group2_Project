@@ -4,7 +4,7 @@ import {
 } from "react";
 
 import { saveReceipt } from "../services/receiptStorage";
-import { addCategory, uniqueCategories } from "../firebase/categories";
+import { addCategory, deleteCategory, uniqueCategories } from "../firebase/categories";
 
 import {
   getFinancialYearSettings,
@@ -293,20 +293,34 @@ useEffect(() => {
   // Categories
   // ======================================================
 
-  const [categories, setCategories] = useState<string[]>([]);
+  type CategoryOption = {
+    categoryId: string;
+    categoryName: string;
+  };
+
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [categoryItemIndex, setCategoryItemIndex] = useState<number | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
 
   useEffect(() => {
     const loadCategories = async () => {
       try {
         const savedCategories = await uniqueCategories();
-        const categoryNames = savedCategories
-          .map((category) => category.categoryName?.trim())
-          .filter((name): name is string => Boolean(name));
 
-        setCategories(categoryNames);
+        const validCategories = savedCategories
+          .filter(
+            (category) =>
+              category.categoryId &&
+              category.categoryName?.trim()
+          )
+          .map((category) => ({
+            categoryId: category.categoryId,
+            categoryName: category.categoryName.trim(),
+          }));
+
+        setCategories(validCategories);
       } catch (error) {
         console.error("Failed to load categories:", error);
       }
@@ -329,7 +343,8 @@ useEffect(() => {
 
   const openCategoryModal = (index: number) => {
     setCategoryItemIndex(index);
-    setNewCategory(items[index]?.category ?? "");
+    setNewCategory("");
+    setCategoryDropdownOpen(false);
     setCategoryModalVisible(true);
   };
 
@@ -337,6 +352,7 @@ useEffect(() => {
     setCategoryModalVisible(false);
     setCategoryItemIndex(null);
     setNewCategory("");
+    setCategoryDropdownOpen(false);
   };
 
   const selectCategory = (category: string) => {
@@ -355,7 +371,7 @@ useEffect(() => {
     closeCategoryModal();
   };
 
-  const useNewCategory = () => {
+  const useNewCategory = async () => {
     const cleanCategory = newCategory.trim();
 
     if (!cleanCategory) {
@@ -363,7 +379,98 @@ useEffect(() => {
       return;
     }
 
-    selectCategory(cleanCategory);
+    const existingCategory = categories.find(
+      (category) =>
+        category.categoryName.toLowerCase() ===
+        cleanCategory.toLowerCase()
+    );
+
+    if (existingCategory) {
+      selectCategory(existingCategory.categoryName);
+      return;
+    }
+
+    try {
+      const addedCategory = await addCategory(cleanCategory);
+
+      if (!addedCategory) {
+        Alert.alert(
+          "Category Error",
+          "Unable to create category."
+        );
+        return;
+      }
+
+      const categoryToAdd: CategoryOption = {
+        categoryId: addedCategory.categoryId,
+        categoryName: addedCategory.categoryName,
+      };
+
+      setCategories((currentCategories) => [
+        ...currentCategories,
+        categoryToAdd,
+      ]);
+
+      selectCategory(categoryToAdd.categoryName);
+    } catch (error) {
+      console.error("Add category error:", error);
+
+      Alert.alert(
+        "Category Error",
+        "Unable to create category."
+      );
+    }
+  };
+
+  const handleDeleteCategory = (
+    category: CategoryOption
+  ) => {
+    Alert.alert(
+      "Delete Category",
+      `Are you sure you want to delete "${category.categoryName}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const success = await deleteCategory(
+                category.categoryId
+              );
+
+              if (!success) {
+                Alert.alert(
+                  "Delete Error",
+                  "Unable to delete category."
+                );
+                return;
+              }
+
+              setCategories((currentCategories) =>
+                currentCategories.filter(
+                  (item) =>
+                    item.categoryId !== category.categoryId
+                )
+              );
+            } catch (error) {
+              console.error(
+                "Delete category error:",
+                error
+              );
+
+              Alert.alert(
+                "Delete Error",
+                "Unable to delete category."
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   // ======================================================
@@ -1196,50 +1303,117 @@ useEffect(() => {
               Choose an existing category or enter a new one.
             </Text>
 
-            <ScrollView
-              style={styles.categoryList}
-              keyboardShouldPersistTaps="handled"
+            <Text style={styles.categoryExistingLabel}>
+              Existing Category
+            </Text>
+
+            <Pressable
+              style={styles.categoryDropdownButton}
+              onPress={() =>
+                setCategoryDropdownOpen((current) => !current)
+              }
             >
-              {categories.length > 0 ? (
-                categories.map((category) => {
-                  const selected =
-                    categoryItemIndex !== null &&
-                    items[categoryItemIndex]?.category === category;
+              <Text
+                style={[
+                  styles.categoryDropdownButtonText,
+                  categoryItemIndex === null ||
+                  !items[categoryItemIndex]?.category
+                    ? styles.categoryPlaceholder
+                    : null,
+                ]}
+              >
+                {categoryItemIndex !== null &&
+                items[categoryItemIndex]?.category
+                  ? items[categoryItemIndex]?.category
+                  : "Select a category"}
+              </Text>
 
-                  return (
-                    <Pressable
-                      key={category}
-                      style={[
-                        styles.categoryOption,
-                        selected && styles.categoryOptionSelected,
-                      ]}
-                      onPress={() => selectCategory(category)}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryOptionText,
-                          selected && styles.categoryOptionTextSelected,
-                        ]}
-                      >
-                        {category}
-                      </Text>
+              <Ionicons
+                name={
+                  categoryDropdownOpen
+                    ? "chevron-up"
+                    : "chevron-down"
+                }
+                size={18}
+                color={colors.primary}
+              />
+            </Pressable>
 
-                      {selected && (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={22}
-                          color={colors.primary}
-                        />
-                      )}
-                    </Pressable>
-                  );
-                })
-              ) : (
-                <Text style={styles.noCategoryText}>
-                  No saved categories yet.
-                </Text>
-              )}
-            </ScrollView>
+            {categoryDropdownOpen && (
+              <View style={styles.categoryDropdownMenu}>
+                {categories.length > 0 ? (
+                  <ScrollView
+                    style={styles.categoryDropdownList}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {categories.map((category, index) => {
+                      const selected =
+                        categoryItemIndex !== null &&
+                        items[categoryItemIndex]?.category ===
+                          category.categoryName;
+
+                      return (
+                        <View
+                          key={`${category.categoryId}-${index}`}
+                          style={[
+                            styles.categoryOption,
+                            selected &&
+                              styles.categoryOptionSelected,
+                          ]}
+                        >
+                          <Pressable
+                            style={styles.categoryOptionSelect}
+                            onPress={() =>
+                              selectCategory(
+                                category.categoryName
+                              )
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.categoryOptionText,
+                                selected &&
+                                  styles.categoryOptionTextSelected,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {category.categoryName}
+                            </Text>
+
+                            {selected && (
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={22}
+                                color={colors.primary}
+                              />
+                            )}
+                          </Pressable>
+
+                          <Pressable
+                            style={styles.categoryDeleteButton}
+                            onPress={() =>
+                              handleDeleteCategory(category)
+                            }
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={20}
+                              color={colors.danger}
+                            />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.noCategoryText}>
+                    No saved categories yet.
+                  </Text>
+                )}
+              </View>
+            )}
 
             <View style={styles.categoryDivider} />
 
@@ -1690,18 +1864,72 @@ const createStyles = (
       color: colors.secondaryText,
     },
 
-    categoryList: {
-      maxHeight: 250,
+    categoryExistingLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.secondaryText,
+      marginBottom: 7,
+    },
+
+    categoryDropdownButton: {
+      minHeight: 50,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      backgroundColor: colors.softBackground,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+
+    categoryDropdownButtonText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+
+    categoryDropdownMenu: {
+      marginTop: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      overflow: "hidden",
+    },
+
+    categoryDropdownList: {
+      maxHeight: 220,
     },
 
     categoryOption: {
       minHeight: 52,
-      paddingHorizontal: 14,
+      paddingLeft: 14,
+      paddingRight: 6,
       borderRadius: 12,
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
       marginBottom: 5,
+    },
+
+    categoryOptionSelect: {
+      flex: 1,
+      minHeight: 52,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+
+    categoryDeleteButton: {
+      width: 42,
+      height: 42,
+      marginLeft: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 10,
+      backgroundColor: colors.dangerSoft,
     },
 
     categoryOptionSelected: {
