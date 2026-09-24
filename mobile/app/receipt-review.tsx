@@ -4,6 +4,7 @@ import {
 } from "react";
 
 import { saveReceipt } from "../services/receiptStorage";
+import { saveReceiptImage } from "../services/receiptImageStorage";
 import { addCategory, deleteCategory, uniqueCategories } from "../firebase/categories";
 
 import {
@@ -89,6 +90,14 @@ export default function ReceiptReview() {
         gst: null,
         items: [],
       };
+
+// ======================================================
+// Editable store name
+// ======================================================
+
+const [storeName, setStoreName] = useState(
+  originalReceipt.store ?? ""
+);
 
 // ======================================================
 // Financial Year
@@ -655,37 +664,28 @@ useEffect(() => {
           }
         }
 
-        await saveReceipt(
-          {
-            store:
-              originalReceipt.store,
+        const savedReceipt = await saveReceipt({
+          store: storeName.trim() || null,
+          date: originalReceipt.date,
+          financialYear: financialYear,
+          time: originalReceipt.time,
+          total: originalReceipt.total,
+          gst: originalReceipt.gst,
+          items: items.map((item) => ({
+            name: item.name,
+            price: item.price,
+            category: item.category?.trim() ?? "",
+          })),
+        });
 
-            date:
-              originalReceipt.date,
-
-            financialYear: financialYear,
-
-            time:
-              originalReceipt.time,
-
-            total:
-              originalReceipt.total,
-
-            gst:
-              originalReceipt.gst,
-
-            items: items.map(
-              (item) => ({
-                name: item.name,
-                price: item.price,
-                category:
-                  item.category?.trim() ?? "",
-              })
-            ),
-          },
-
-
-        );
+        // Save receipt image locally only.
+        if (imageUri) {
+          try {
+            await saveReceiptImage(savedReceipt.id, imageUri);
+          } catch (imageError) {
+            console.error("Failed to save receipt image locally:", imageError);
+          }
+        }
 
         Alert.alert(
           "Receipt Saved",
@@ -760,25 +760,18 @@ useEffect(() => {
         <View
           style={styles.summaryCard}
         >
-          <View
-            style={styles.summaryRow}
-          >
-            <Text
-              style={
-                styles.summaryLabel
-              }
-            >
-              Store
-            </Text>
+          <View style={styles.storeSection}>
+            <Text style={styles.summaryLabel}>Store</Text>
 
-            <Text
-              style={
-                styles.summaryValue
-              }
-            >
-              {originalReceipt.store ??
-                "Unknown"}
-            </Text>
+            <TextInput
+              style={styles.storeInput}
+              value={storeName}
+              onChangeText={setStoreName}
+              placeholder="Enter store name"
+              placeholderTextColor={colors.mutedText}
+              autoCapitalize="words"
+              returnKeyType="done"
+            />
           </View>
 
           <View
@@ -1606,6 +1599,23 @@ const createStyles = (
       justifyContent:
         "space-between",
       marginBottom: 10,
+    },
+
+    storeSection: {
+      marginBottom: 14,
+    },
+
+    storeInput: {
+      marginTop: 7,
+      minHeight: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      backgroundColor: colors.softBackground,
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
     },
 
     summaryLabel: {
