@@ -3,7 +3,9 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -299,6 +301,187 @@ export async function deleteReceipt(
   } catch (error) {
     console.error(
       "Failed to delete receipt from Firebase:",
+      error
+    );
+
+    throw error;
+  }
+}
+
+/*
+========================================
+Update Receipt Item
+========================================
+*/
+
+export async function updateReceiptItem(
+  receiptId: string,
+  itemIndex: number,
+  updatedItem: SavedReceiptItem
+): Promise<void> {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("User is not logged in.");
+  }
+
+  try {
+    const receiptRef = doc(
+      db,
+      "users",
+      user.uid,
+      "receipts",
+      receiptId
+    );
+
+    const receiptSnapshot = await getDoc(
+      receiptRef
+    );
+
+    if (!receiptSnapshot.exists()) {
+      throw new Error("Receipt not found.");
+    }
+
+    const data = receiptSnapshot.data();
+
+    const items: SavedReceiptItem[] =
+      Array.isArray(data.items)
+        ? data.items.map((item: any) => ({
+            name:
+              typeof item?.name === "string"
+                ? item.name
+                : "Unknown item",
+
+            price:
+              typeof item?.price === "number"
+                ? item.price
+                : Number(item?.price) || 0,
+
+            category:
+              typeof item?.category === "string"
+                ? item.category
+                : "Other",
+          }))
+        : [];
+
+    if (
+      itemIndex < 0 ||
+      itemIndex >= items.length
+    ) {
+      throw new Error("Item not found.");
+    }
+
+    items[itemIndex] = {
+      name: updatedItem.name,
+      price: updatedItem.price,
+      category: updatedItem.category,
+    };
+
+    await updateDoc(receiptRef, {
+      items,
+    });
+
+    console.log(
+      "Receipt item updated:",
+      receiptId,
+      itemIndex
+    );
+  } catch (error) {
+    console.error(
+      "Failed to update receipt item:",
+      error
+    );
+
+    throw error;
+  }
+}
+
+/*
+========================================
+Delete Receipt Item
+========================================
+*/
+
+export async function deleteReceiptItem(
+  receiptId: string,
+  itemIndex: number
+): Promise<void> {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("User is not logged in.");
+  }
+
+  try {
+    const receiptRef = doc(
+      db,
+      "users",
+      user.uid,
+      "receipts",
+      receiptId
+    );
+
+    const receiptSnapshot = await getDoc(
+      receiptRef
+    );
+
+    if (!receiptSnapshot.exists()) {
+      throw new Error("Receipt not found.");
+    }
+
+    const data = receiptSnapshot.data();
+
+    const items: SavedReceiptItem[] =
+      Array.isArray(data.items)
+        ? data.items.map((item: any) => ({
+            name:
+              typeof item?.name === "string"
+                ? item.name
+                : "Unknown item",
+
+            price:
+              typeof item?.price === "number"
+                ? item.price
+                : Number(item?.price) || 0,
+
+            category:
+              typeof item?.category === "string"
+                ? item.category
+                : "Other",
+          }))
+        : [];
+
+    if (
+      itemIndex < 0 ||
+      itemIndex >= items.length
+    ) {
+      throw new Error("Item not found.");
+    }
+
+    items.splice(itemIndex, 1);
+
+if (items.length === 0) {
+  await deleteDoc(receiptRef);
+
+  console.log(
+    "Receipt deleted because it has no items:",
+    receiptId
+  );
+
+  return;
+}
+
+await updateDoc(receiptRef, {
+  items,
+});
+    console.log(
+      "Receipt item deleted:",
+      receiptId,
+      itemIndex
+    );
+  } catch (error) {
+    console.error(
+      "Failed to delete receipt item:",
       error
     );
 
