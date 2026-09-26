@@ -83,98 +83,80 @@ export default function ReceiptReview() {
   const originalReceipt: Receipt = receiptParam
     ? JSON.parse(receiptParam)
     : {
-        store: null,
-        date: null,
-        time: null,
-        total: null,
-        gst: null,
-        items: [],
-      };
+      store: null,
+      date: null,
+      time: null,
+      total: null,
+      gst: null,
+      items: [],
+    };
 
-// ======================================================
-// Editable store name
-// ======================================================
+  // ======================================================
+  // Editable store name
+  // ======================================================
 
-const [storeName, setStoreName] = useState(
-  originalReceipt.store ?? ""
-);
-
-// ======================================================
-// Financial Year
-// ======================================================
-
-const [
-  financialYears,
-  setFinancialYears,
-] = useState<string[]>([]);
-
-const [
-  financialYear,
-  setFinancialYear,
-] = useState<string>("");
-
-const [
-  financialYearModalVisible,
-  setFinancialYearModalVisible,
-] = useState(false);
-
-/*
-======================================================
-Calculate Australian financial year from receipt date
-======================================================
-*/
-
-const getFinancialYearFromDate = (
-  dateString: string | null
-): string | null => {
-  if (!dateString) {
-    return null;
-  }
-
-  let date: Date | null = null;
-
-  /*
-    Australian receipt format:
-
-    DD/MM/YYYY
-
-    Example:
-    02/01/2021
-    = 2 January 2021
-    = financial year 2020-2021
-  */
-
-  const slashMatch = dateString.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+  const [storeName, setStoreName] = useState(
+    originalReceipt.store ?? ""
   );
 
-  if (slashMatch) {
-    const day = Number(slashMatch[1]);
-    const month = Number(slashMatch[2]);
-    const year = Number(slashMatch[3]);
+  // ======================================================
+  // Financial Year
+  // ======================================================
 
-    date = new Date(
-      year,
-      month - 1,
-      day
-    );
-  }
+  const [
+    financialYears,
+    setFinancialYears,
+  ] = useState<string[]>([]);
+
+  const [
+    financialYear,
+    setFinancialYear,
+  ] = useState<string>("");
+
+  const [
+    activeFinancialYear,
+    setActiveFinancialYear,
+  ] = useState<string>("");
+
+  const [
+    financialYearModalVisible,
+    setFinancialYearModalVisible,
+  ] = useState(false);
 
   /*
-    ISO format:
-
-    YYYY-MM-DD
+  ======================================================
+  Calculate Australian financial year from receipt date
+  ======================================================
   */
 
-  if (!date) {
-    const isoMatch = dateString.match(
-      /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+  const getFinancialYearFromDate = (
+    dateString: string | null
+  ): string | null => {
+    if (!dateString) {
+      return null;
+    }
+
+    let date: Date | null = null;
+
+    /*
+      Australian receipt format:
+  
+      DD/MM/YYYY
+  
+      Example:
+      02/01/2021
+      = 2 January 2021
+      = financial year 2020-2021
+    */
+
+    const slashMatch = dateString.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
     );
 
-    if (isoMatch) {
-      const year = Number(isoMatch[1]);
-      const month = Number(isoMatch[2]);
-      const day = Number(isoMatch[3]);
+    if (slashMatch) {
+      const day = Number(slashMatch[1]);
+      const month = Number(slashMatch[2]);
+      const year = Number(slashMatch[3]);
 
       date = new Date(
         year,
@@ -182,121 +164,139 @@ const getFinancialYearFromDate = (
         day
       );
     }
-  }
 
-  /*
-    Fallback for other valid date strings
-  */
+    /*
+      ISO format:
+  
+      YYYY-MM-DD
+    */
 
-  if (!date) {
-    const parsedDate = new Date(dateString);
-
-    if (!Number.isNaN(parsedDate.getTime())) {
-      date = parsedDate;
-    }
-  }
-
-  if (
-    !date ||
-    Number.isNaN(date.getTime())
-  ) {
-    return null;
-  }
-
-  const year = date.getFullYear();
-  const month = date.getMonth();
-
-  /*
-    Australian financial year:
-
-    1 July -> 30 June
-  */
-
-  return month >= 6
-    ? `${year}-${year + 1}`
-    : `${year - 1}-${year}`;
-};
-
-/*
-======================================================
-Load financial years
-======================================================
-*/
-
-useEffect(() => {
-  const loadFinancialYears = async () => {
-    try {
-      const settings =
-        await getFinancialYearSettings();
-
-      const receiptFinancialYear =
-        getFinancialYearFromDate(
-          originalReceipt.date
-        );
-
-      /*
-        Start with the financial years
-        already created by the user.
-      */
-
-      const availableYears = [
-        ...settings.financialYears,
-      ];
-
-      /*
-        Make sure the receipt's automatically
-        detected financial year is also available
-        in the dropdown.
-      */
-
-      if (
-        receiptFinancialYear &&
-        !availableYears.includes(
-          receiptFinancialYear
-        )
-      ) {
-        availableYears.push(
-          receiptFinancialYear
-        );
-      }
-
-      setFinancialYears(
-        availableYears
+    if (!date) {
+      const isoMatch = dateString.match(
+        /^(\d{4})-(\d{1,2})-(\d{1,2})$/
       );
 
-      /*
-        DEFAULT:
-        Use the financial year calculated
-        from the receipt date.
+      if (isoMatch) {
+        const year = Number(isoMatch[1]);
+        const month = Number(isoMatch[2]);
+        const day = Number(isoMatch[3]);
 
-        The user can then manually change
-        this using the dropdown.
-      */
-
-      if (receiptFinancialYear) {
-        setFinancialYear(
-          receiptFinancialYear
+        date = new Date(
+          year,
+          month - 1,
+          day
         );
-      } else {
+      }
+    }
+
+    /*
+      Fallback for other valid date strings
+    */
+
+    if (!date) {
+      const parsedDate = new Date(dateString);
+
+      if (!Number.isNaN(parsedDate.getTime())) {
+        date = parsedDate;
+      }
+    }
+
+    if (
+      !date ||
+      Number.isNaN(date.getTime())
+    ) {
+      return null;
+    }
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    /*
+      Australian financial year:
+  
+      1 July -> 30 June
+    */
+
+    return month >= 6
+      ? `${year}-${year + 1}`
+      : `${year - 1}-${year}`;
+  };
+
+  /*
+  ======================================================
+  Load financial years
+  ======================================================
+  */
+
+  useEffect(() => {
+    const loadFinancialYears = async () => {
+      try {
+        const settings =
+          await getFinancialYearSettings();
+        setActiveFinancialYear(settings.activeFinancialYear);
+
+        const receiptFinancialYear =
+          getFinancialYearFromDate(
+            originalReceipt.date
+          );
+
+        /*
+          Start with the financial years
+          already created by the user.
+        */
+
+        const availableYears = [
+          ...settings.financialYears,
+        ];
+
+        /*
+          Make sure the receipt's automatically
+          detected financial year is also available
+          in the dropdown.
+        */
+
+        if (
+          receiptFinancialYear &&
+          !availableYears.includes(
+            receiptFinancialYear
+          )
+        ) {
+          availableYears.push(
+            receiptFinancialYear
+          );
+        }
+
+        setFinancialYears(
+          availableYears
+        );
+
+        /*
+          DEFAULT:
+          Use the financial year calculated
+          from the receipt date.
+  
+          The user can then manually change
+          this using the dropdown.
+        */
+
         setFinancialYear(
           settings.activeFinancialYear
         );
+      } catch (error) {
+        console.error(
+          "Failed to load financial years:",
+          error
+        );
+
+        Alert.alert(
+          "Financial Years",
+          "Unable to load your financial years."
+        );
       }
-    } catch (error) {
-      console.error(
-        "Failed to load financial years:",
-        error
-      );
+    };
 
-      Alert.alert(
-        "Financial Years",
-        "Unable to load your financial years."
-      );
-    }
-  };
-
-  loadFinancialYears();
-}, [originalReceipt.date]);
+    loadFinancialYears();
+  }, [originalReceipt.date]);
 
   // ======================================================
   // Categories
@@ -349,6 +349,11 @@ useEffect(() => {
         category: item.category ?? null,
       }))
     );
+
+  const calculatedTotal = items.reduce(
+    (total, item) => total + item.price,
+    0
+  );
 
   const openCategoryModal = (index: number) => {
     setCategoryItemIndex(index);
@@ -590,10 +595,10 @@ useEffect(() => {
           (item, index) =>
             index === editingItemIndex
               ? {
-                  ...item,
-                  name: cleanName,
-                  price: parsedPrice,
-                }
+                ...item,
+                name: cleanName,
+                price: parsedPrice,
+              }
               : item
         )
       );
@@ -645,20 +650,20 @@ useEffect(() => {
       try {
         const existingCategory = await uniqueCategories();
 
-        for(const item of items){
+        for (const item of items) {
           const name = item.category?.trim();
-          
-          if(!name){
+
+          if (!name) {
             continue
           }
 
-          const alreadyExists =  existingCategory.some((category) =>
+          const alreadyExists = existingCategory.some((category) =>
             category.categoryName.toLowerCase() === name.toLowerCase()
           );
 
-          if(!alreadyExists){
+          if (!alreadyExists) {
             const addedCategory = await addCategory(name);
-            if(addedCategory){
+            if (addedCategory) {
               existingCategory.push(addedCategory);
             }
           }
@@ -669,7 +674,7 @@ useEffect(() => {
           date: originalReceipt.date,
           financialYear: financialYear,
           time: originalReceipt.time,
-          total: originalReceipt.total,
+          total: calculatedTotal,
           gst: originalReceipt.gst,
           items: items.map((item) => ({
             name: item.name,
@@ -873,43 +878,37 @@ useEffect(() => {
                 styles.totalValue
               }
             >
-              $
-              {originalReceipt.total !==
-              null
-                ? originalReceipt.total.toFixed(
-                    2
-                  )
-                : "0.00"}
+              ${calculatedTotal.toFixed(2)}
             </Text>
           </View>
 
           {originalReceipt.gst !==
             null && (
-            <View
-              style={
-                styles.summaryRow
-              }
-            >
-              <Text
+              <View
                 style={
-                  styles.summaryLabel
+                  styles.summaryRow
                 }
               >
-                GST
-              </Text>
+                <Text
+                  style={
+                    styles.summaryLabel
+                  }
+                >
+                  GST
+                </Text>
 
-              <Text
-                style={
-                  styles.summaryValue
-                }
-              >
-                $
-                {originalReceipt.gst.toFixed(
-                  2
-                )}
-              </Text>
-            </View>
-          )}
+                <Text
+                  style={
+                    styles.summaryValue
+                  }
+                >
+                  $
+                  {originalReceipt.gst.toFixed(
+                    2
+                  )}
+                </Text>
+              </View>
+            )}
         </View>
 
         {/* Receipt items header */}
@@ -1172,7 +1171,7 @@ useEffect(() => {
               }
             >
               {editingItemIndex !==
-              null
+                null
                 ? "Edit Item"
                 : "Add Item"}
             </Text>
@@ -1260,7 +1259,7 @@ useEffect(() => {
                   }
                 >
                   {editingItemIndex !==
-                  null
+                    null
                     ? "Save Changes"
                     : "Add Item"}
                 </Text>
@@ -1286,7 +1285,7 @@ useEffect(() => {
         >
           <Pressable
             style={styles.categoryModalContent}
-            onPress={() => {}}
+            onPress={() => { }}
           >
             <Text style={styles.categoryModalTitle}>
               Select Category
@@ -1310,13 +1309,13 @@ useEffect(() => {
                 style={[
                   styles.categoryDropdownButtonText,
                   categoryItemIndex === null ||
-                  !items[categoryItemIndex]?.category
+                    !items[categoryItemIndex]?.category
                     ? styles.categoryPlaceholder
                     : null,
                 ]}
               >
                 {categoryItemIndex !== null &&
-                items[categoryItemIndex]?.category
+                  items[categoryItemIndex]?.category
                   ? items[categoryItemIndex]?.category
                   : "Select a category"}
               </Text>
@@ -1344,7 +1343,7 @@ useEffect(() => {
                       const selected =
                         categoryItemIndex !== null &&
                         items[categoryItemIndex]?.category ===
-                          category.categoryName;
+                        category.categoryName;
 
                       return (
                         <View
@@ -1352,7 +1351,7 @@ useEffect(() => {
                           style={[
                             styles.categoryOption,
                             selected &&
-                              styles.categoryOptionSelected,
+                            styles.categoryOptionSelected,
                           ]}
                         >
                           <Pressable
@@ -1367,7 +1366,7 @@ useEffect(() => {
                               style={[
                                 styles.categoryOptionText,
                                 selected &&
-                                  styles.categoryOptionTextSelected,
+                                styles.categoryOptionTextSelected,
                               ]}
                               numberOfLines={1}
                             >
@@ -1478,7 +1477,7 @@ useEffect(() => {
             style={
               styles.yearModalContent
             }
-            onPress={() => {}}
+            onPress={() => { }}
           >
             <Text
               style={styles.yearModalTitle}
@@ -1490,13 +1489,16 @@ useEffect(() => {
               const selected =
                 year === financialYear;
 
+              const isActive =
+                year === activeFinancialYear;
+
               return (
                 <Pressable
                   key={year}
                   style={[
                     styles.yearOption,
                     selected &&
-                      styles.yearOptionSelected,
+                    styles.yearOptionSelected,
                   ]}
                   onPress={() => {
                     setFinancialYear(year);
@@ -1509,12 +1511,16 @@ useEffect(() => {
                     style={[
                       styles.yearOptionText,
                       selected &&
-                        styles.yearOptionTextSelected,
+                      styles.yearOptionTextSelected,
                     ]}
                   >
                     {year}
                   </Text>
-
+                  {isActive && (
+                    <Text style={styles.activeYearText}>
+                      Active
+                    </Text>
+                  )}
                   {selected && (
                     <Ionicons
                       name="checkmark-circle"
@@ -1702,6 +1708,14 @@ const createStyles = (
     yearOptionTextSelected: {
       color: colors.primary,
       fontWeight: "700",
+    },
+
+    activeYearText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: "700",
+      marginLeft: "auto",
+      marginRight: 8,
     },
 
     sectionHeader: {

@@ -361,18 +361,18 @@ const getDuplicateKey = (
       receipt.items
     )
       ? receipt.items
-          .map(
-            (item) =>
-              `${normaliseText(
-                item.name
-              )}|${normaliseAmount(
-                item.price
-              )}|${normaliseText(
-                item.category
-              )}`
-          )
-          .sort()
-          .join("||")
+        .map(
+          (item) =>
+            `${normaliseText(
+              item.name
+            )}|${normaliseAmount(
+              item.price
+            )}|${normaliseText(
+              item.category
+            )}`
+        )
+        .sort()
+        .join("||")
       : "";
 
   return [
@@ -409,8 +409,10 @@ export default function Summary() {
     selectedYear,
     setSelectedYear,
   ] = useState<FinancialYear>("");
-    
-  
+
+  const [activeYear, setActiveYear] = useState<FinancialYear>("");
+
+
 
   /* ====================================================
      RECEIPTS
@@ -461,148 +463,118 @@ export default function Summary() {
      LOAD SUMMARY
   ==================================================== */
 
-const loadSummary = async () => {
-  try {
-    setLoading(true);
+  const loadSummary = async () => {
+    try {
+      setLoading(true);
 
-    /* --------------------------------------------
-       LOAD RECEIPTS
-    -------------------------------------------- */
+      /* --------------------------------------------
+         LOAD RECEIPTS
+      -------------------------------------------- */
 
-    const savedReceipts = await getReceipts();
+      const savedReceipts = await getReceipts();
 
-    setReceipts(savedReceipts);
+      setReceipts(savedReceipts);
 
-    console.log(
-      "SUMMARY RECEIPTS:",
-      savedReceipts
-    );
+      console.log(
+        "SUMMARY RECEIPTS:",
+        savedReceipts
+      );
 
-    /* --------------------------------------------
-       LOAD FINANCIAL YEAR SETTINGS
-    -------------------------------------------- */
+      /* --------------------------------------------
+         LOAD FINANCIAL YEAR SETTINGS
+      -------------------------------------------- */
 
-    const settings =
-      await getFinancialYearSettings();
+      const settings =
+        await getFinancialYearSettings();
 
-    /* --------------------------------------------
-       GET YEARS FROM FINANCIAL YEAR SETTINGS
-    -------------------------------------------- */
+      /* --------------------------------------------
+         GET YEARS FROM FINANCIAL YEAR SETTINGS
+      -------------------------------------------- */
 
-    const settingYears =
-      (settings.financialYears ?? [])
-        .map((year) =>
-          normaliseFinancialYear(year)
-        )
-        .filter(Boolean);
+      const settingYears = (settings.financialYears ?? [])
+        .map((year) => normaliseFinancialYear(year))
+        .filter((year): year is string => year !== null);
 
-    /* --------------------------------------------
-       GET FINANCIAL YEARS DIRECTLY FROM RECEIPTS
 
-       This makes sure that a receipt's financial
-       year appears in the Summary even if that
-       year has not been manually added yet.
-    -------------------------------------------- */
 
-    const receiptYears =
-      savedReceipts
-        .map((receipt) => {
-          const dateToUse =
-            receipt.date ??
-            receipt.createdAt;
+      /* --------------------------------------------
+         COMBINE BOTH SOURCES
+  
+         Financial Year Settings
+         +
+         Receipt Financial Years
+      -------------------------------------------- */
 
-          return normaliseFinancialYear(
-            getFinancialYear(dateToUse)
-          );
-        })
-        .filter(Boolean);
+      const uniqueYears = [...new Set(settingYears)].sort((a, b) => {
+        const startYearA =
+          Number(a.split("-")[0]);
 
-    /* --------------------------------------------
-       COMBINE BOTH SOURCES
+        const startYearB =
+          Number(b.split("-")[0]);
 
-       Financial Year Settings
-       +
-       Receipt Financial Years
-    -------------------------------------------- */
+        return startYearB - startYearA;
+      });
 
-    const uniqueYears = [
-      ...new Set([
-        ...settingYears,
-        ...receiptYears,
-      ]),
-    ].sort((a, b) => {
-      const startYearA =
-        Number(a.split("-")[0]);
+      setFinancialYears(uniqueYears);
 
-      const startYearB =
-        Number(b.split("-")[0]);
+      console.log(
+        "SUMMARY FINANCIAL YEARS:",
+        uniqueYears
+      );
 
-      return startYearB - startYearA;
-    });
+      /* --------------------------------------------
+         SELECT THE CORRECT FINANCIAL YEAR
+  
+         First preference:
+         user's active financial year.
+  
+         If the active year has no receipts,
+         choose the first year that actually
+         contains receipt data.
+      -------------------------------------------- */
 
-    setFinancialYears(uniqueYears);
+      const loadedActiveYear =
+        normaliseFinancialYear(
+          settings.activeFinancialYear
+        );
 
-    console.log(
-      "SUMMARY FINANCIAL YEARS:",
-      uniqueYears
-    );
+      setActiveYear(loadedActiveYear ?? "");
 
-    /* --------------------------------------------
-       SELECT THE CORRECT FINANCIAL YEAR
+      if (
+        loadedActiveYear &&
+        uniqueYears.includes(loadedActiveYear)
+      ) {
+        setFinancialYears(uniqueYears);
+        setSelectedYear(loadedActiveYear);
+      } else if (uniqueYears.length > 0) {
+        setFinancialYears(uniqueYears);
+        setSelectedYear(uniqueYears[0]);
+      } else {
+        setFinancialYears([]);
+        setSelectedYear("");
+      }
 
-       First preference:
-       user's active financial year.
+      console.log(
+        "SUMMARY SELECTED YEAR:",
+        loadedActiveYear
+      );
 
-       If the active year has no receipts,
-       choose the first year that actually
-       contains receipt data.
-    -------------------------------------------- */
+    } catch (error) {
+      console.error(
+        "Failed to load Summary:",
+        error
+      );
 
-    const activeYear =
-  normaliseFinancialYear(
-    settings.activeFinancialYear
-  );
+      setReceipts([]);
 
-const yearsWithReceipts = [
-  ...new Set(receiptYears),
-];
-
-if (activeYear) {
-  const yearsWithActiveYear = uniqueYears.includes(activeYear)
-    ? uniqueYears
-    : [...uniqueYears, activeYear];
-
-  setFinancialYears(yearsWithActiveYear);
-  setSelectedYear(activeYear);
-} else if (yearsWithReceipts.length > 0) {
-  setSelectedYear(yearsWithReceipts[0]);
-} else if (uniqueYears.length > 0) {
-  setSelectedYear(uniqueYears[0]);
-} else {
-  setSelectedYear("");
-}
-
-    console.log(
-      "SUMMARY SELECTED YEAR:",
-      activeYear
-    );
-
-  } catch (error) {
-    console.error(
-      "Failed to load Summary:",
-      error
-    );
-
-    setReceipts([]);
-
-    Alert.alert(
-      "Summary Error",
-      "Unable to load your summary."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+      Alert.alert(
+        "Summary Error",
+        "Unable to load your summary."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* ====================================================
      REFRESH WHEN SCREEN OPENS
@@ -681,7 +653,7 @@ if (activeYear) {
 
           if (
             !seenByYear[
-              receiptYear
+            receiptYear
             ]
           ) {
             seenByYear[
@@ -711,7 +683,7 @@ if (activeYear) {
             ] =
               (
                 duplicateCounts[
-                  receiptYear
+                receiptYear
                 ] ?? 0
               ) + 1;
 
@@ -754,36 +726,36 @@ if (activeYear) {
   const duplicateCountForSelectedYear =
     duplicateInfo
       .duplicateCounts[
-      normaliseFinancialYear(
-        selectedYear
-      )
+    normaliseFinancialYear(
+      selectedYear
+    )
     ] ?? 0;
 
   /* ====================================================
      FILTER RECEIPTS BY FINANCIAL YEAR
   ==================================================== */
 
- const filteredReceipts = useMemo(() => {
-  return uniqueReceipts.filter((receipt) => {
-    const receiptYear =
-      receipt.financialYear ??
-      getFinancialYear(
-        receipt.date ?? receipt.createdAt
-      );
+  const filteredReceipts = useMemo(() => {
+    return uniqueReceipts.filter((receipt) => {
+      const receiptYear =
+        receipt.financialYear ??
+        getFinancialYear(
+          receipt.date ?? receipt.createdAt
+        );
 
-    return (
-      normaliseFinancialYear(
-        receiptYear
-      ) ===
-      normaliseFinancialYear(
-        selectedYear
-      )
-    );
-  });
-}, [
-  uniqueReceipts,
-  selectedYear,
-]);
+      return (
+        normaliseFinancialYear(
+          receiptYear
+        ) ===
+        normaliseFinancialYear(
+          selectedYear
+        )
+      );
+    });
+  }, [
+    uniqueReceipts,
+    selectedYear,
+  ]);
 
   /* ====================================================
      TOTAL EXPENSES
@@ -798,9 +770,9 @@ if (activeYear) {
         ) => {
           if (
             receipt.total !==
-              null &&
+            null &&
             receipt.total !==
-              undefined &&
+            undefined &&
             !Number.isNaN(
               receipt.total
             )
@@ -908,7 +880,7 @@ if (activeYear) {
         (expense) => {
           if (
             !categoryMap[
-              expense.category
+            expense.category
             ]
           ) {
             categoryMap[
@@ -961,12 +933,12 @@ if (activeYear) {
 
             percentage:
               categoryTotal >
-              0
+                0
                 ? Math.round(
-                    (data.amount /
-                      categoryTotal) *
-                      100
-                  )
+                  (data.amount /
+                    categoryTotal) *
+                  100
+                )
                 : 0,
           })
         )
@@ -1060,18 +1032,18 @@ if (activeYear) {
                     receipt.id,
 
                     receipt.store ??
-                      "Unknown",
+                    "Unknown",
 
                     formatDate(
                       receipt.date ??
-                        receipt.createdAt
+                      receipt.createdAt
                     ),
 
                     getFinancialYear(
                       receipt.date ??
-                        receipt.createdAt
+                      receipt.createdAt
                     ) ??
-                      "Unknown",
+                    "Unknown",
 
                     (
                       receipt.total ??
@@ -1086,7 +1058,7 @@ if (activeYear) {
                     item.name,
 
                     item.category ||
-                      "Other",
+                    "Other",
 
                     item.price.toFixed(
                       2
@@ -1363,37 +1335,37 @@ if (activeYear) {
 
         {duplicateCountForSelectedYear >
           0 && (
-          <View
-            style={
-              styles.duplicateNotice
-            }
-          >
-            <Ionicons
-              name="copy-outline"
-              size={17}
-              color={
-                colors.primary
-              }
-            />
-
-            <Text
+            <View
               style={
-                styles.duplicateNoticeText
+                styles.duplicateNotice
               }
             >
-              {
-                duplicateCountForSelectedYear
-              }{" "}
-              duplicate{" "}
-              {duplicateCountForSelectedYear ===
-              1
-                ? "record"
-                : "records"}{" "}
-              hidden in{" "}
-              {selectedYear}
-            </Text>
-          </View>
-        )}
+              <Ionicons
+                name="copy-outline"
+                size={17}
+                color={
+                  colors.primary
+                }
+              />
+
+              <Text
+                style={
+                  styles.duplicateNoticeText
+                }
+              >
+                {
+                  duplicateCountForSelectedYear
+                }{" "}
+                duplicate{" "}
+                {duplicateCountForSelectedYear ===
+                  1
+                  ? "record"
+                  : "records"}{" "}
+                hidden in{" "}
+                {selectedYear}
+              </Text>
+            </View>
+          )}
 
         {/* ==================================================
             STATISTICS
@@ -1484,7 +1456,7 @@ if (activeYear) {
           }
         >
           {categorySummaries.length ===
-          0 ? (
+            0 ? (
             <View
               style={
                 styles.emptyState
@@ -1513,9 +1485,9 @@ if (activeYear) {
                   style={[
                     styles.categoryRow,
                     index !==
-                      categorySummaries.length -
-                        1 &&
-                      styles.categoryBorder,
+                    categorySummaries.length -
+                    1 &&
+                    styles.categoryBorder,
                   ]}
                 >
                   <View>
@@ -1538,7 +1510,7 @@ if (activeYear) {
                         category.count
                       }{" "}
                       {category.count ===
-                      1
+                        1
                         ? "item"
                         : "items"}
                     </Text>
@@ -1574,7 +1546,7 @@ if (activeYear) {
         </Text>
 
         {filteredReceipts.length ===
-        0 ? (
+          0 ? (
           <View
             style={
               styles.emptyReceiptCard
@@ -1657,7 +1629,7 @@ if (activeYear) {
                     >
                       {formatDate(
                         receipt.date ??
-                          receipt.createdAt
+                        receipt.createdAt
                       )}
                     </Text>
                   </View>
@@ -1715,9 +1687,9 @@ if (activeYear) {
                       style={[
                         styles.receiptItem,
                         itemIndex !==
-                          receipt.items.length -
-                            1 &&
-                          styles.itemBorder,
+                        receipt.items.length -
+                        1 &&
+                        styles.itemBorder,
                       ]}
                     >
                       <View
@@ -1822,7 +1794,7 @@ if (activeYear) {
             </Text>
 
             {financialYears.length ===
-            0 ? (
+              0 ? (
               <Text
                 style={
                   styles.emptyModalText
@@ -1842,8 +1814,8 @@ if (activeYear) {
                     style={[
                       styles.yearOption,
                       selectedYear ===
-                        year &&
-                        styles.selectedYearOption,
+                      year &&
+                      styles.selectedYearOption,
                     ]}
                     onPress={() => {
                       setSelectedYear(
@@ -1859,23 +1831,29 @@ if (activeYear) {
                       style={[
                         styles.yearOptionText,
                         selectedYear ===
-                          year &&
-                          styles.selectedYearText,
+                        year &&
+                        styles.selectedYearText,
                       ]}
                     >
                       {year}
                     </Text>
 
+                    {year === activeYear && (
+                      <Text style={styles.activeYearText}>
+                        Active
+                      </Text>
+                    )}
+
                     {selectedYear ===
                       year && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={21}
-                        color={
-                          colors.primary
-                        }
-                      />
-                    )}
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={21}
+                          color={
+                            colors.primary
+                          }
+                        />
+                      )}
                   </Pressable>
                 )
               )
@@ -2004,7 +1982,7 @@ if (activeYear) {
                     >
                       {formatDate(
                         selectedReceipt.date ??
-                          selectedReceipt.createdAt
+                        selectedReceipt.createdAt
                       )}
                     </Text>
                   </View>
@@ -2039,7 +2017,7 @@ if (activeYear) {
                     >
                       {getFinancialYear(
                         selectedReceipt.date ??
-                          selectedReceipt.createdAt
+                        selectedReceipt.createdAt
                       ) ??
                         "Unknown"}
                     </Text>
@@ -2151,9 +2129,9 @@ if (activeYear) {
                         style={[
                           styles.detailsItemRow,
                           index !==
-                            selectedReceipt.items.length -
-                              1 &&
-                            styles.detailsItemBorder,
+                          selectedReceipt.items.length -
+                          1 &&
+                          styles.detailsItemBorder,
                         ]}
                       >
                         <View
@@ -2770,6 +2748,14 @@ const createStyles = (
       color:
         colors.primary,
       fontWeight: "700",
+    },
+
+    activeYearText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: "700",
+      marginLeft: "auto",
+      marginRight: 8,
     },
 
     /* ------------------------------------------
