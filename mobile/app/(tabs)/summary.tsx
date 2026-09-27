@@ -6,10 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
+  ActivityIndicator,  
   Modal,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -25,6 +26,10 @@ import {
   getReceipts,
   SavedReceipt,
 } from "../../services/receiptStorage";
+
+import {
+  getReceiptImage,
+} from "../../services/receiptImageStorage";
 
 import {
   getFinancialYearSettings,
@@ -455,6 +460,16 @@ export default function Summary() {
   const [
     receiptModalVisible,
     setReceiptModalVisible,
+  ] = useState(false);
+
+  const [
+    receiptImageUri,
+    setReceiptImageUri,
+  ] = useState<string | null>(null);
+
+  const [
+    receiptImageModalVisible,
+    setReceiptImageModalVisible,
   ] = useState(false);
 
   /* ====================================================
@@ -993,6 +1008,43 @@ if (activeYear) {
         true
       );
     };
+
+  /* ====================================================
+     OPEN RECEIPT IMAGE
+  ==================================================== */
+
+  const openReceiptImage = async () => {
+    if (!selectedReceipt) {
+      return;
+    }
+
+    try {
+      const imageUri = await getReceiptImage(
+        selectedReceipt.id
+      );
+
+      if (!imageUri) {
+        Alert.alert(
+          "Receipt Image",
+          "Receipt image is not available on this device."
+        );
+        return;
+      }
+
+      setReceiptImageUri(imageUri);
+      setReceiptImageModalVisible(true);
+    } catch (error) {
+      console.error(
+        "Failed to load receipt image:",
+        error
+      );
+
+      Alert.alert(
+        "Receipt Image",
+        "Unable to load the receipt image."
+      );
+    }
+  };
 
   /* ====================================================
      EXPORT CSV
@@ -2242,12 +2294,107 @@ if (activeYear) {
                   </Text>
                 </View>
 
+                <Pressable
+                  style={
+                    styles.viewReceiptImageButton
+                  }
+                  onPress={
+                    openReceiptImage
+                  }
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+
+                  <Text
+                    style={
+                      styles.viewReceiptImageText
+                    }
+                  >
+                    View Receipt Image
+                  </Text>
+                </Pressable>
+
                 <View
                   style={
                     styles.detailsBottomSpace
                   }
                 />
               </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================
+          RECEIPT IMAGE MODAL
+      ================================================== */}
+
+      <Modal
+        visible={
+          receiptImageModalVisible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setReceiptImageModalVisible(false);
+          setReceiptImageUri(null);
+        }}
+      >
+        <View
+          style={
+            styles.imageModalOverlay
+          }
+        >
+          <View
+            style={
+              styles.imageModalContent
+            }
+          >
+            <View
+              style={
+                styles.imageModalHeader
+              }
+            >
+              <Text
+                style={
+                  styles.imageModalTitle
+                }
+              >
+                Receipt Image
+              </Text>
+
+              <Pressable
+                style={
+                  styles.closeButton
+                }
+                onPress={() => {
+                  setReceiptImageModalVisible(false);
+                  setReceiptImageUri(null);
+                }}
+              >
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={
+                    colors.text
+                  }
+                />
+              </Pressable>
+            </View>
+
+            {receiptImageUri && (
+              <Image
+                source={{
+                  uri: receiptImageUri,
+                }}
+                style={
+                  styles.receiptImage
+                }
+                resizeMode="contain"
+              />
             )}
           </View>
         </View>
@@ -3003,6 +3150,65 @@ const createStyles = (
       fontWeight: "900",
       color:
         colors.primary,
+    },
+
+    viewReceiptImageButton: {
+      minHeight: 50,
+      marginTop: 14,
+      borderRadius: 14,
+      backgroundColor:
+        colors.primary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+
+    viewReceiptImageText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+
+    imageModalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.75)",
+      justifyContent: "center",
+      padding: 20,
+    },
+
+    imageModalContent: {
+      height: "85%",
+      backgroundColor:
+        colors.background,
+      borderRadius: 20,
+      overflow: "hidden",
+    },
+
+    imageModalHeader: {
+      height: 60,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
+
+    imageModalTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
+
+    receiptImage: {
+      flex: 1,
+      width: "100%",
+      backgroundColor:
+        colors.softBackground,
     },
 
     detailsBottomSpace: {

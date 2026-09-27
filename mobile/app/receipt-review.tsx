@@ -60,6 +60,10 @@ export default function ReceiptReview() {
     typeof params.imageUri === "string"
       ? params.imageUri
       : null;
+console.log(
+  "RECEIPT REVIEW IMAGE URI:",
+  imageUri
+);
 
   const imageFileName =
     typeof params.fileName === "string"
@@ -679,13 +683,38 @@ useEffect(() => {
         });
 
         // Save receipt image locally only.
-        if (imageUri) {
-          try {
-            await saveReceiptImage(savedReceipt.id, imageUri);
-          } catch (imageError) {
-            console.error("Failed to save receipt image locally:", imageError);
-          }
-        }
+
+console.log(
+  "ABOUT TO SAVE IMAGE:",
+  {
+    receiptId: savedReceipt.id,
+    imageUri: imageUri,
+  }
+);
+
+if (imageUri) {
+  try {
+    const savedImagePath =
+      await saveReceiptImage(
+        savedReceipt.id,
+        imageUri
+      );
+
+    console.log(
+      "IMAGE SAVE SUCCESS:",
+      savedImagePath
+    );
+  } catch (imageError) {
+    console.error(
+      "IMAGE SAVE FAILED:",
+      imageError
+    );
+  }
+} else {
+  console.log(
+    "IMAGE NOT SAVED: imageUri is missing"
+  );
+}
 
         Alert.alert(
           "Receipt Saved",
