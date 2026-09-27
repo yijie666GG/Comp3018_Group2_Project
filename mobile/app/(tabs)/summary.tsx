@@ -6,10 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
+  ActivityIndicator,  
   Modal,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -25,6 +26,10 @@ import {
   getReceipts,
   SavedReceipt,
 } from "../../services/receiptStorage";
+
+import {
+  getReceiptImage,
+} from "../../services/receiptImageStorage";
 
 import {
   getFinancialYearSettings,
@@ -361,18 +366,18 @@ const getDuplicateKey = (
       receipt.items
     )
       ? receipt.items
-        .map(
-          (item) =>
-            `${normaliseText(
-              item.name
-            )}|${normaliseAmount(
-              item.price
-            )}|${normaliseText(
-              item.category
-            )}`
-        )
-        .sort()
-        .join("||")
+          .map(
+            (item) =>
+              `${normaliseText(
+                item.name
+              )}|${normaliseAmount(
+                item.price
+              )}|${normaliseText(
+                item.category
+              )}`
+          )
+          .sort()
+          .join("||")
       : "";
 
   return [
@@ -409,10 +414,8 @@ export default function Summary() {
     selectedYear,
     setSelectedYear,
   ] = useState<FinancialYear>("");
-
-  const [activeYear, setActiveYear] = useState<FinancialYear>("");
-
-
+    
+  
 
   /* ====================================================
      RECEIPTS
@@ -459,122 +462,162 @@ export default function Summary() {
     setReceiptModalVisible,
   ] = useState(false);
 
+  const [
+    receiptImageUri,
+    setReceiptImageUri,
+  ] = useState<string | null>(null);
+
+  const [
+    receiptImageModalVisible,
+    setReceiptImageModalVisible,
+  ] = useState(false);
+
   /* ====================================================
      LOAD SUMMARY
   ==================================================== */
 
-  const loadSummary = async () => {
-    try {
-      setLoading(true);
+const loadSummary = async () => {
+  try {
+    setLoading(true);
 
-      /* --------------------------------------------
-         LOAD RECEIPTS
-      -------------------------------------------- */
+    /* --------------------------------------------
+       LOAD RECEIPTS
+    -------------------------------------------- */
 
-      const savedReceipts = await getReceipts();
+    const savedReceipts = await getReceipts();
 
-      setReceipts(savedReceipts);
+    setReceipts(savedReceipts);
 
-      console.log(
-        "SUMMARY RECEIPTS:",
-        savedReceipts
-      );
+    console.log(
+      "SUMMARY RECEIPTS:",
+      savedReceipts
+    );
 
-      /* --------------------------------------------
-         LOAD FINANCIAL YEAR SETTINGS
-      -------------------------------------------- */
+    /* --------------------------------------------
+       LOAD FINANCIAL YEAR SETTINGS
+    -------------------------------------------- */
 
-      const settings =
-        await getFinancialYearSettings();
+    const settings =
+      await getFinancialYearSettings();
 
-      /* --------------------------------------------
-         GET YEARS FROM FINANCIAL YEAR SETTINGS
-      -------------------------------------------- */
+    /* --------------------------------------------
+       GET YEARS FROM FINANCIAL YEAR SETTINGS
+    -------------------------------------------- */
 
-      const settingYears = (settings.financialYears ?? [])
-        .map((year) => normaliseFinancialYear(year))
-        .filter((year): year is string => year !== null);
+    const settingYears =
+      (settings.financialYears ?? [])
+        .map((year) =>
+          normaliseFinancialYear(year)
+        )
+        .filter(Boolean);
 
+    /* --------------------------------------------
+       GET FINANCIAL YEARS DIRECTLY FROM RECEIPTS
 
+       This makes sure that a receipt's financial
+       year appears in the Summary even if that
+       year has not been manually added yet.
+    -------------------------------------------- */
 
-      /* --------------------------------------------
-         COMBINE BOTH SOURCES
-  
-         Financial Year Settings
-         +
-         Receipt Financial Years
-      -------------------------------------------- */
+    const receiptYears =
+      savedReceipts
+        .map((receipt) => {
+          const dateToUse =
+            receipt.date ??
+            receipt.createdAt;
 
-      const uniqueYears = [...new Set(settingYears)].sort((a, b) => {
-        const startYearA =
-          Number(a.split("-")[0]);
+          return normaliseFinancialYear(
+            getFinancialYear(dateToUse)
+          );
+        })
+        .filter(Boolean);
 
-        const startYearB =
-          Number(b.split("-")[0]);
+    /* --------------------------------------------
+       COMBINE BOTH SOURCES
 
-        return startYearB - startYearA;
-      });
+       Financial Year Settings
+       +
+       Receipt Financial Years
+    -------------------------------------------- */
 
-      setFinancialYears(uniqueYears);
+    const uniqueYears = [
+      ...new Set([
+        ...settingYears,
+        ...receiptYears,
+      ]),
+    ].sort((a, b) => {
+      const startYearA =
+        Number(a.split("-")[0]);
 
-      console.log(
-        "SUMMARY FINANCIAL YEARS:",
-        uniqueYears
-      );
+      const startYearB =
+        Number(b.split("-")[0]);
 
-      /* --------------------------------------------
-         SELECT THE CORRECT FINANCIAL YEAR
-  
-         First preference:
-         user's active financial year.
-  
-         If the active year has no receipts,
-         choose the first year that actually
-         contains receipt data.
-      -------------------------------------------- */
+      return startYearB - startYearA;
+    });
 
-      const loadedActiveYear =
-        normaliseFinancialYear(
-          settings.activeFinancialYear
-        );
+    setFinancialYears(uniqueYears);
 
-      setActiveYear(loadedActiveYear ?? "");
+    console.log(
+      "SUMMARY FINANCIAL YEARS:",
+      uniqueYears
+    );
 
-      if (
-        loadedActiveYear &&
-        uniqueYears.includes(loadedActiveYear)
-      ) {
-        setFinancialYears(uniqueYears);
-        setSelectedYear(loadedActiveYear);
-      } else if (uniqueYears.length > 0) {
-        setFinancialYears(uniqueYears);
-        setSelectedYear(uniqueYears[0]);
-      } else {
-        setFinancialYears([]);
-        setSelectedYear("");
-      }
+    /* --------------------------------------------
+       SELECT THE CORRECT FINANCIAL YEAR
 
-      console.log(
-        "SUMMARY SELECTED YEAR:",
-        loadedActiveYear
-      );
+       First preference:
+       user's active financial year.
 
-    } catch (error) {
-      console.error(
-        "Failed to load Summary:",
-        error
-      );
+       If the active year has no receipts,
+       choose the first year that actually
+       contains receipt data.
+    -------------------------------------------- */
 
-      setReceipts([]);
+    const activeYear =
+  normaliseFinancialYear(
+    settings.activeFinancialYear
+  );
 
-      Alert.alert(
-        "Summary Error",
-        "Unable to load your summary."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+const yearsWithReceipts = [
+  ...new Set(receiptYears),
+];
+
+if (activeYear) {
+  const yearsWithActiveYear = uniqueYears.includes(activeYear)
+    ? uniqueYears
+    : [...uniqueYears, activeYear];
+
+  setFinancialYears(yearsWithActiveYear);
+  setSelectedYear(activeYear);
+} else if (yearsWithReceipts.length > 0) {
+  setSelectedYear(yearsWithReceipts[0]);
+} else if (uniqueYears.length > 0) {
+  setSelectedYear(uniqueYears[0]);
+} else {
+  setSelectedYear("");
+}
+
+    console.log(
+      "SUMMARY SELECTED YEAR:",
+      activeYear
+    );
+
+  } catch (error) {
+    console.error(
+      "Failed to load Summary:",
+      error
+    );
+
+    setReceipts([]);
+
+    Alert.alert(
+      "Summary Error",
+      "Unable to load your summary."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   /* ====================================================
      REFRESH WHEN SCREEN OPENS
@@ -653,7 +696,7 @@ export default function Summary() {
 
           if (
             !seenByYear[
-            receiptYear
+              receiptYear
             ]
           ) {
             seenByYear[
@@ -683,7 +726,7 @@ export default function Summary() {
             ] =
               (
                 duplicateCounts[
-                receiptYear
+                  receiptYear
                 ] ?? 0
               ) + 1;
 
@@ -726,36 +769,36 @@ export default function Summary() {
   const duplicateCountForSelectedYear =
     duplicateInfo
       .duplicateCounts[
-    normaliseFinancialYear(
-      selectedYear
-    )
+      normaliseFinancialYear(
+        selectedYear
+      )
     ] ?? 0;
 
   /* ====================================================
      FILTER RECEIPTS BY FINANCIAL YEAR
   ==================================================== */
 
-  const filteredReceipts = useMemo(() => {
-    return uniqueReceipts.filter((receipt) => {
-      const receiptYear =
-        receipt.financialYear ??
-        getFinancialYear(
-          receipt.date ?? receipt.createdAt
-        );
-
-      return (
-        normaliseFinancialYear(
-          receiptYear
-        ) ===
-        normaliseFinancialYear(
-          selectedYear
-        )
+ const filteredReceipts = useMemo(() => {
+  return uniqueReceipts.filter((receipt) => {
+    const receiptYear =
+      receipt.financialYear ??
+      getFinancialYear(
+        receipt.date ?? receipt.createdAt
       );
-    });
-  }, [
-    uniqueReceipts,
-    selectedYear,
-  ]);
+
+    return (
+      normaliseFinancialYear(
+        receiptYear
+      ) ===
+      normaliseFinancialYear(
+        selectedYear
+      )
+    );
+  });
+}, [
+  uniqueReceipts,
+  selectedYear,
+]);
 
   /* ====================================================
      TOTAL EXPENSES
@@ -770,9 +813,9 @@ export default function Summary() {
         ) => {
           if (
             receipt.total !==
-            null &&
+              null &&
             receipt.total !==
-            undefined &&
+              undefined &&
             !Number.isNaN(
               receipt.total
             )
@@ -880,7 +923,7 @@ export default function Summary() {
         (expense) => {
           if (
             !categoryMap[
-            expense.category
+              expense.category
             ]
           ) {
             categoryMap[
@@ -933,12 +976,12 @@ export default function Summary() {
 
             percentage:
               categoryTotal >
-                0
+              0
                 ? Math.round(
-                  (data.amount /
-                    categoryTotal) *
-                  100
-                )
+                    (data.amount /
+                      categoryTotal) *
+                      100
+                  )
                 : 0,
           })
         )
@@ -965,6 +1008,43 @@ export default function Summary() {
         true
       );
     };
+
+  /* ====================================================
+     OPEN RECEIPT IMAGE
+  ==================================================== */
+
+  const openReceiptImage = async () => {
+    if (!selectedReceipt) {
+      return;
+    }
+
+    try {
+      const imageUri = await getReceiptImage(
+        selectedReceipt.id
+      );
+
+      if (!imageUri) {
+        Alert.alert(
+          "Receipt Image",
+          "Receipt image is not available on this device."
+        );
+        return;
+      }
+
+      setReceiptImageUri(imageUri);
+      setReceiptImageModalVisible(true);
+    } catch (error) {
+      console.error(
+        "Failed to load receipt image:",
+        error
+      );
+
+      Alert.alert(
+        "Receipt Image",
+        "Unable to load the receipt image."
+      );
+    }
+  };
 
   /* ====================================================
      EXPORT CSV
@@ -1032,18 +1112,18 @@ export default function Summary() {
                     receipt.id,
 
                     receipt.store ??
-                    "Unknown",
+                      "Unknown",
 
                     formatDate(
                       receipt.date ??
-                      receipt.createdAt
+                        receipt.createdAt
                     ),
 
                     getFinancialYear(
                       receipt.date ??
-                      receipt.createdAt
+                        receipt.createdAt
                     ) ??
-                    "Unknown",
+                      "Unknown",
 
                     (
                       receipt.total ??
@@ -1058,7 +1138,7 @@ export default function Summary() {
                     item.name,
 
                     item.category ||
-                    "Other",
+                      "Other",
 
                     item.price.toFixed(
                       2
@@ -1335,37 +1415,37 @@ export default function Summary() {
 
         {duplicateCountForSelectedYear >
           0 && (
-            <View
+          <View
+            style={
+              styles.duplicateNotice
+            }
+          >
+            <Ionicons
+              name="copy-outline"
+              size={17}
+              color={
+                colors.primary
+              }
+            />
+
+            <Text
               style={
-                styles.duplicateNotice
+                styles.duplicateNoticeText
               }
             >
-              <Ionicons
-                name="copy-outline"
-                size={17}
-                color={
-                  colors.primary
-                }
-              />
-
-              <Text
-                style={
-                  styles.duplicateNoticeText
-                }
-              >
-                {
-                  duplicateCountForSelectedYear
-                }{" "}
-                duplicate{" "}
-                {duplicateCountForSelectedYear ===
-                  1
-                  ? "record"
-                  : "records"}{" "}
-                hidden in{" "}
-                {selectedYear}
-              </Text>
-            </View>
-          )}
+              {
+                duplicateCountForSelectedYear
+              }{" "}
+              duplicate{" "}
+              {duplicateCountForSelectedYear ===
+              1
+                ? "record"
+                : "records"}{" "}
+              hidden in{" "}
+              {selectedYear}
+            </Text>
+          </View>
+        )}
 
         {/* ==================================================
             STATISTICS
@@ -1456,7 +1536,7 @@ export default function Summary() {
           }
         >
           {categorySummaries.length ===
-            0 ? (
+          0 ? (
             <View
               style={
                 styles.emptyState
@@ -1485,9 +1565,9 @@ export default function Summary() {
                   style={[
                     styles.categoryRow,
                     index !==
-                    categorySummaries.length -
-                    1 &&
-                    styles.categoryBorder,
+                      categorySummaries.length -
+                        1 &&
+                      styles.categoryBorder,
                   ]}
                 >
                   <View>
@@ -1510,7 +1590,7 @@ export default function Summary() {
                         category.count
                       }{" "}
                       {category.count ===
-                        1
+                      1
                         ? "item"
                         : "items"}
                     </Text>
@@ -1546,7 +1626,7 @@ export default function Summary() {
         </Text>
 
         {filteredReceipts.length ===
-          0 ? (
+        0 ? (
           <View
             style={
               styles.emptyReceiptCard
@@ -1629,7 +1709,7 @@ export default function Summary() {
                     >
                       {formatDate(
                         receipt.date ??
-                        receipt.createdAt
+                          receipt.createdAt
                       )}
                     </Text>
                   </View>
@@ -1687,9 +1767,9 @@ export default function Summary() {
                       style={[
                         styles.receiptItem,
                         itemIndex !==
-                        receipt.items.length -
-                        1 &&
-                        styles.itemBorder,
+                          receipt.items.length -
+                            1 &&
+                          styles.itemBorder,
                       ]}
                     >
                       <View
@@ -1794,7 +1874,7 @@ export default function Summary() {
             </Text>
 
             {financialYears.length ===
-              0 ? (
+            0 ? (
               <Text
                 style={
                   styles.emptyModalText
@@ -1814,8 +1894,8 @@ export default function Summary() {
                     style={[
                       styles.yearOption,
                       selectedYear ===
-                      year &&
-                      styles.selectedYearOption,
+                        year &&
+                        styles.selectedYearOption,
                     ]}
                     onPress={() => {
                       setSelectedYear(
@@ -1831,29 +1911,23 @@ export default function Summary() {
                       style={[
                         styles.yearOptionText,
                         selectedYear ===
-                        year &&
-                        styles.selectedYearText,
+                          year &&
+                          styles.selectedYearText,
                       ]}
                     >
                       {year}
                     </Text>
 
-                    {year === activeYear && (
-                      <Text style={styles.activeYearText}>
-                        Active
-                      </Text>
-                    )}
-
                     {selectedYear ===
                       year && (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={21}
-                          color={
-                            colors.primary
-                          }
-                        />
-                      )}
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={21}
+                        color={
+                          colors.primary
+                        }
+                      />
+                    )}
                   </Pressable>
                 )
               )
@@ -1982,7 +2056,7 @@ export default function Summary() {
                     >
                       {formatDate(
                         selectedReceipt.date ??
-                        selectedReceipt.createdAt
+                          selectedReceipt.createdAt
                       )}
                     </Text>
                   </View>
@@ -2017,7 +2091,7 @@ export default function Summary() {
                     >
                       {getFinancialYear(
                         selectedReceipt.date ??
-                        selectedReceipt.createdAt
+                          selectedReceipt.createdAt
                       ) ??
                         "Unknown"}
                     </Text>
@@ -2129,9 +2203,9 @@ export default function Summary() {
                         style={[
                           styles.detailsItemRow,
                           index !==
-                          selectedReceipt.items.length -
-                          1 &&
-                          styles.detailsItemBorder,
+                            selectedReceipt.items.length -
+                              1 &&
+                            styles.detailsItemBorder,
                         ]}
                       >
                         <View
@@ -2220,12 +2294,107 @@ export default function Summary() {
                   </Text>
                 </View>
 
+                <Pressable
+                  style={
+                    styles.viewReceiptImageButton
+                  }
+                  onPress={
+                    openReceiptImage
+                  }
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+
+                  <Text
+                    style={
+                      styles.viewReceiptImageText
+                    }
+                  >
+                    View Receipt Image
+                  </Text>
+                </Pressable>
+
                 <View
                   style={
                     styles.detailsBottomSpace
                   }
                 />
               </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================================================
+          RECEIPT IMAGE MODAL
+      ================================================== */}
+
+      <Modal
+        visible={
+          receiptImageModalVisible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setReceiptImageModalVisible(false);
+          setReceiptImageUri(null);
+        }}
+      >
+        <View
+          style={
+            styles.imageModalOverlay
+          }
+        >
+          <View
+            style={
+              styles.imageModalContent
+            }
+          >
+            <View
+              style={
+                styles.imageModalHeader
+              }
+            >
+              <Text
+                style={
+                  styles.imageModalTitle
+                }
+              >
+                Receipt Image
+              </Text>
+
+              <Pressable
+                style={
+                  styles.closeButton
+                }
+                onPress={() => {
+                  setReceiptImageModalVisible(false);
+                  setReceiptImageUri(null);
+                }}
+              >
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={
+                    colors.text
+                  }
+                />
+              </Pressable>
+            </View>
+
+            {receiptImageUri && (
+              <Image
+                source={{
+                  uri: receiptImageUri,
+                }}
+                style={
+                  styles.receiptImage
+                }
+                resizeMode="contain"
+              />
             )}
           </View>
         </View>
@@ -2750,14 +2919,6 @@ const createStyles = (
       fontWeight: "700",
     },
 
-    activeYearText: {
-      color: colors.primary,
-      fontSize: 13,
-      fontWeight: "700",
-      marginLeft: "auto",
-      marginRight: 8,
-    },
-
     /* ------------------------------------------
        RECEIPT DETAILS
     ------------------------------------------ */
@@ -2989,6 +3150,65 @@ const createStyles = (
       fontWeight: "900",
       color:
         colors.primary,
+    },
+
+    viewReceiptImageButton: {
+      minHeight: 50,
+      marginTop: 14,
+      borderRadius: 14,
+      backgroundColor:
+        colors.primary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+
+    viewReceiptImageText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+
+    imageModalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.75)",
+      justifyContent: "center",
+      padding: 20,
+    },
+
+    imageModalContent: {
+      height: "85%",
+      backgroundColor:
+        colors.background,
+      borderRadius: 20,
+      overflow: "hidden",
+    },
+
+    imageModalHeader: {
+      height: 60,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
+
+    imageModalTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      color:
+        colors.text,
+    },
+
+    receiptImage: {
+      flex: 1,
+      width: "100%",
+      backgroundColor:
+        colors.softBackground,
     },
 
     detailsBottomSpace: {
