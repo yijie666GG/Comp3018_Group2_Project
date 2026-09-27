@@ -108,14 +108,17 @@ export default function ScanReceipt() {
         );
       }
 
-      router.push({
-        pathname: "/receipt-review" as any,
-        params: {
-          receipt: JSON.stringify(
-            data.receipt
-          ),
-        },
-      });
+router.push({
+  pathname: "/receipt-review" as any,
+  params: {
+    receipt: JSON.stringify(
+      data.receipt
+    ),
+    imageUri: imageUri,
+    fileName: fileName,
+    mimeType: mimeType,
+  },
+});
     } catch (error) {
       console.log(
         "Receipt upload error:",
