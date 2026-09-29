@@ -16,11 +16,27 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { auth } from '../../firebase/firebase';
 import { useTheme } from '../../theme/ThemeContext';
 
+/**
+ * Account screen.
+ *
+ * Provides access to account-related settings including:
+ * - Personal information
+ * - Notifications
+ * - Financial years
+ * - Appearance
+ * - Logout
+ */
 export default function AccountScreen() {
+  // Get the current theme colours and appearance mode.
   const { colors, mode } = useTheme();
 
+  // Create styles using the active theme.
   const styles = createStyles(colors);
 
+  /**
+   * Convert the current theme mode into a user-friendly label.
+   * The value is displayed under the Appearance setting.
+   */
   const appearanceLabel =
     mode === 'light'
       ? 'Light'
@@ -28,6 +44,19 @@ export default function AccountScreen() {
         ? 'Dark'
         : 'System';
 
+  /**
+   * Log the current user out of the application.
+   *
+   * A confirmation dialog is shown first to prevent
+   * accidental logout.
+   *
+   * The function signs the user out from both:
+   * - Google Sign-In
+   * - Firebase Authentication
+   *
+   * After successful logout, the user is returned
+   * to the initial screen.
+   */
   const handleLogout = () => {
     Alert.alert(
       'Log out',
@@ -42,15 +71,20 @@ export default function AccountScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Sign out from the Google account session.
               await GoogleSignin.signOut();
+
+              // Sign out from Firebase Authentication.
               await signOut(auth);
 
               console.log('Logout successful');
 
+              // Return to the initial/login screen.
               router.replace('/');
             } catch (error) {
               console.log('Logout error:', error);
 
+              // Inform the user if logout fails.
               Alert.alert(
                 'Logout failed',
                 'Unable to log out. Please try again.'
@@ -68,8 +102,10 @@ export default function AccountScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Screen title */}
         <Text style={styles.title}>Account</Text>
 
+        {/* Account overview card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Ionicons
@@ -90,11 +126,15 @@ export default function AccountScreen() {
           </View>
         </View>
 
+        {/* Account settings section */}
         <Text style={styles.sectionTitle}>
           Settings
         </Text>
 
-        {/* Personal Information */}
+        {/* Personal Information
+            Opens the screen for viewing and managing
+            user account information.
+        */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -127,7 +167,10 @@ export default function AccountScreen() {
           />
         </TouchableOpacity>
 
-        {/* Notifications */}
+        {/* Notifications
+            Opens notification settings, including
+            the financial year reminder.
+        */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -160,7 +203,9 @@ export default function AccountScreen() {
           />
         </TouchableOpacity>
 
-        {/* Financial Years */}
+        {/* Financial Years
+            Opens the financial year management screen.
+        */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -193,7 +238,10 @@ export default function AccountScreen() {
           />
         </TouchableOpacity>
 
-        {/* Appearance */}
+        {/* Appearance
+            Opens the theme settings screen.
+            The current theme mode is displayed below the title.
+        */}
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
@@ -226,7 +274,7 @@ export default function AccountScreen() {
           />
         </TouchableOpacity>
 
-        {/* Logout */}
+        {/* Logout button */}
         <TouchableOpacity
           style={styles.logoutButton}
           activeOpacity={0.7}
@@ -247,19 +295,28 @@ export default function AccountScreen() {
   );
 }
 
+/**
+ * Creates styles for the Account screen.
+ *
+ * All main colours come from ThemeContext so the screen
+ * automatically supports the application's appearance modes.
+ */
 const createStyles = (colors: any) =>
   StyleSheet.create({
+    // Main screen background.
     safeArea: {
       flex: 1,
       backgroundColor: colors.background,
     },
 
+    // Main scrollable content container.
     content: {
       paddingHorizontal: 22,
       paddingTop: 16,
       paddingBottom: 110,
     },
 
+    // Account screen heading.
     title: {
       fontSize: 26,
       fontWeight: '800',
@@ -267,6 +324,7 @@ const createStyles = (colors: any) =>
       marginBottom: 24,
     },
 
+    // Account information card.
     profileCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -278,6 +336,7 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.card,
     },
 
+    // User avatar/icon container.
     avatar: {
       width: 54,
       height: 54,
@@ -300,6 +359,7 @@ const createStyles = (colors: any) =>
       marginTop: 4,
     },
 
+    // Settings section heading.
     sectionTitle: {
       fontSize: 16,
       fontWeight: '800',
@@ -307,6 +367,7 @@ const createStyles = (colors: any) =>
       marginBottom: 10,
     },
 
+    // Shared layout for each settings menu item.
     menuItem: {
       minHeight: 74,
       borderBottomWidth: 1,
@@ -322,6 +383,7 @@ const createStyles = (colors: any) =>
       flex: 1,
     },
 
+    // Icon background used by each settings option.
     iconBox: {
       width: 42,
       height: 42,
@@ -344,6 +406,7 @@ const createStyles = (colors: any) =>
       marginTop: 3,
     },
 
+    // Logout action button.
     logoutButton: {
       height: 52,
       marginTop: 34,

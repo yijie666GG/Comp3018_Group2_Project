@@ -1,3 +1,20 @@
+/**
+ * Home Screen
+ *
+ * Main dashboard of the Smart Expense application.
+ *
+ * This screen:
+ * - Displays the current user's name
+ * - Loads the active financial year
+ * - Calculates total expenses for the active financial year
+ * - Displays the number of saved receipts
+ * - Shows the five most recent receipts
+ * - Provides quick navigation to Scan, Categories, Items and Summary
+ *
+ * Receipt and user data are loaded from Firebase Firestore.
+ */
+
+
 import { useCallback, useState } from 'react';
 
 import {
@@ -30,6 +47,9 @@ import {
 
 import { useTheme } from '../../theme/ThemeContext';
 
+/**
+ * Represents a receipt loaded from Firebase Firestore.
+ */
 type Receipt = {
   id: string;
   store?: string;
@@ -43,28 +63,59 @@ type Receipt = {
   createdAt?: Date | null;
 };
 
+/**
+ * Home Screen
+ *
+ * Main dashboard of the Smart Expense application.
+ *
+ * This screen:
+ * - Displays the current user's name
+ * - Displays the active financial year
+ * - Calculates total expenses for the active financial year
+ * - Displays the number of saved receipts
+ * - Shows the five most recent receipts
+ * - Provides quick navigation to important application features
+ *
+ * User and receipt information is loaded from Firebase Firestore.
+ */
 export default function HomeScreen() {
+  // Get colours from the currently active application theme.
   const { colors } = useTheme();
+
+  // Create styles using the active theme colours.
   const styles = createStyles(colors);
 
+  // Current financial year used to filter receipt information.
   const [financialYear, setFinancialYear] = useState(
     getCurrentFinancialYear()
   );
 
+  // User and dashboard information.
   const [name, setName] = useState('');
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [itemsSaved, setItemSaved] = useState(0);
   const [recentReceipt, setRecentReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * Reload Home screen information whenever the screen becomes active.
+   *
+   * This ensures that newly added or updated receipts are reflected
+   * when the user returns to the Home screen.
+   */
   useFocusEffect(
     useCallback(() => {
       const loadHomeData = async () => {
         try {
           setLoading(true);
 
+          // Get the currently authenticated Firebase user.
           const user = auth.currentUser;
 
+          /**
+           * If no user is currently signed in,
+           * clear all dashboard information.
+           */
           if (!user) {
             setRecentReceipts([]);
             setTotalExpenses(0);
@@ -72,6 +123,10 @@ export default function HomeScreen() {
             return;
           }
 
+          /**
+           * Load the user's financial year settings
+           * and determine the currently active financial year.
+           */
           const settings = await getFinancialYearSettings();
 
           const activeFinancialYear =
@@ -79,6 +134,12 @@ export default function HomeScreen() {
 
           setFinancialYear(activeFinancialYear);
 
+          /**
+           * Load the user's profile information.
+           *
+           * Firestore structure:
+           * users/{userId}
+           */
           const userRef = doc(
             db,
             'users',
@@ -95,6 +156,12 @@ export default function HomeScreen() {
             setName(data.name || '');
           }
 
+          /**
+           * Reference the current user's receipt collection.
+           *
+           * Firestore structure:
+           * users/{userId}/receipts/{receiptId}
+           */
           const receiptRef = collection(
             db,
             'users',
@@ -102,6 +169,10 @@ export default function HomeScreen() {
             'receipts'
           );
 
+          /**
+           * Only retrieve receipts belonging to
+           * the currently active financial year.
+           */
           const financialYearQuery = query(
             receiptRef,
             where(
@@ -116,10 +187,18 @@ export default function HomeScreen() {
               financialYearQuery
             );
 
+          /**
+           * Store the number of receipts found
+           * for the active financial year.
+           */
           setItemSaved(
             receiptSnapshot.size
           );
 
+          /**
+           * Calculate the total value of all receipts
+           * belonging to the active financial year.
+           */
           let total = 0;
 
           receiptSnapshot.forEach(
@@ -134,6 +213,10 @@ export default function HomeScreen() {
 
           setTotalExpenses(total);
 
+          /**
+           * Convert Firestore documents into Receipt objects
+           * that can be displayed by the Home screen.
+           */
           const allReceipts: Receipt[] =
             receiptSnapshot.docs.map(
               (receipt) => {
@@ -144,6 +227,10 @@ export default function HomeScreen() {
                   | Date
                   | null = null;
 
+                /**
+                 * Firestore stores createdAt as a Timestamp.
+                 * Convert it into a standard JavaScript Date.
+                 */
                 if (
                   data.createdAt?.toDate
                 ) {
@@ -200,6 +287,10 @@ export default function HomeScreen() {
               }
             );
 
+          /**
+           * Sort receipts from newest to oldest
+           * using their creation timestamp.
+           */
           allReceipts.sort(
             (a, b) => {
               const timeA =
@@ -212,6 +303,10 @@ export default function HomeScreen() {
             }
           );
 
+          /**
+           * Only display the five most recent receipts
+           * on the Home screen.
+           */
           setRecentReceipts(
             allReceipts.slice(0, 5)
           );
@@ -221,8 +316,10 @@ export default function HomeScreen() {
             error
           );
 
+          // Clear recent receipt data if loading fails.
           setRecentReceipts([]);
         } finally {
+          // Stop displaying the loading state.
           setLoading(false);
         }
       };
@@ -237,6 +334,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* User greeting and profile header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
@@ -257,6 +355,14 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/*
+          Financial year overview.
+
+          Displays:
+          - Active financial year
+          - Total expenses
+          - Number of saved receipts
+        */}
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>
             Current financial year
@@ -289,11 +395,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Quick navigation section */}
         <Text style={styles.sectionTitle}>
           Quick actions
         </Text>
 
         <View style={styles.grid}>
+          {/* Navigate to receipt scanning/upload */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() =>
@@ -318,6 +426,7 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Navigate to category management */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() =>
@@ -342,6 +451,7 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Navigate to saved item history */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() =>
@@ -366,6 +476,7 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Navigate to expense summary */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() =>
@@ -391,10 +502,15 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Recent receipts section */}
         <Text style={styles.sectionTitle}>
           Recent items
         </Text>
 
+        {/*
+          Display a loading message while receipt
+          information is being retrieved.
+        */}
         {loading ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyText}>
@@ -402,6 +518,10 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : recentReceipt.length === 0 ? (
+          /*
+           * Empty state displayed when the user
+           * has no receipts for the active financial year.
+           */
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
               <Ionicons
@@ -421,6 +541,15 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : (
+          /*
+           * Display the most recent receipts.
+           *
+           * Each receipt shows:
+           * - Store name
+           * - Date
+           * - Time
+           * - Total amount
+           */
           recentReceipt.map(
             (receipt) => (
               <View
@@ -483,19 +612,28 @@ export default function HomeScreen() {
   );
 }
 
+/**
+ * Creates theme-aware styles for the Home screen.
+ *
+ * Colours are provided by ThemeContext so the screen
+ * automatically adapts to the application's active theme.
+ */
 const createStyles = (colors: any) =>
   StyleSheet.create({
+    // Main screen container.
     safeArea: {
       flex: 1,
       backgroundColor: colors.background,
     },
 
+    // Main scrollable content.
     content: {
       paddingHorizontal: 22,
       paddingTop: 12,
       paddingBottom: 110,
     },
 
+    // Header containing greeting and profile icon.
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -515,6 +653,7 @@ const createStyles = (colors: any) =>
       marginTop: 2,
     },
 
+    // User profile icon container.
     profileCircle: {
       width: 44,
       height: 44,
@@ -524,6 +663,7 @@ const createStyles = (colors: any) =>
       justifyContent: 'center',
     },
 
+    // Financial year overview card.
     heroCard: {
       backgroundColor: colors.primary,
       borderRadius: 22,
@@ -544,6 +684,7 @@ const createStyles = (colors: any) =>
       marginBottom: 22,
     },
 
+    // Container for financial year statistics.
     heroStats: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -561,6 +702,7 @@ const createStyles = (colors: any) =>
       fontWeight: '800',
     },
 
+    // Shared section heading.
     sectionTitle: {
       fontSize: 18,
       fontWeight: '800',
@@ -568,6 +710,7 @@ const createStyles = (colors: any) =>
       marginBottom: 14,
     },
 
+    // Two-column quick action grid.
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -575,6 +718,7 @@ const createStyles = (colors: any) =>
       marginBottom: 28,
     },
 
+    // Individual quick action card.
     actionCard: {
       width: '48%',
       borderWidth: 1,
@@ -586,6 +730,7 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.card,
     },
 
+    // Icon container used by quick actions.
     iconBox: {
       width: 42,
       height: 42,
@@ -608,6 +753,7 @@ const createStyles = (colors: any) =>
       color: colors.secondaryText,
     },
 
+    // Empty/loading state container.
     emptyCard: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -618,6 +764,7 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.card,
     },
 
+    // Icon displayed in the empty receipt state.
     emptyIcon: {
       width: 44,
       height: 44,
@@ -642,6 +789,7 @@ const createStyles = (colors: any) =>
       marginTop: 4,
     },
 
+    // Individual receipt displayed in the recent items section.
     receiptCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -653,6 +801,7 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.card,
     },
 
+    // Receipt icon container.
     receiptIcon: {
       width: 44,
       height: 44,
@@ -662,6 +811,7 @@ const createStyles = (colors: any) =>
       alignItems: 'center',
     },
 
+    // Receipt store/date information.
     receiptInfo: {
       flex: 1,
       marginLeft: 12,
@@ -680,10 +830,10 @@ const createStyles = (colors: any) =>
       marginTop: 4,
     },
 
+    // Receipt total amount.
     receiptTotal: {
       fontSize: 14,
       fontWeight: '800',
       color: colors.text,
     },
-  }
-);
+  });

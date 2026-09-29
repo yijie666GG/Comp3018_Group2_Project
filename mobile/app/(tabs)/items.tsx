@@ -1,3 +1,17 @@
+/**
+ * Items Screen
+ *
+ * Displays individual expense items extracted from saved receipts.
+ *
+ * Users can:
+ * - Filter items by financial year
+ * - Filter items by category
+ * - Search by item, category or store
+ * - Edit item name, price and category
+ * - Delete individual receipt items
+ * - Access category management
+ */
+
 import { useCallback, useState } from 'react';
 import { uniqueCategories } from '../../firebase/categories';
 

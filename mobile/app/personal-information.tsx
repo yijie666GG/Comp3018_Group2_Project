@@ -35,37 +35,69 @@ import {
   useTheme,
 } from '../theme/ThemeContext';
 
+/**
+ * Personal Information Screen
+ *
+ * Allows the user to view and update their personal
+ * account information.
+ *
+ * Users can:
+ * - View their saved name and email address
+ * - Update their full name
+ * - Delete their account
+ *
+ * Account deletion behaviour depends on the authentication
+ * provider used by the current Firebase user.
+ */
 export default function PersonalInformationScreen() {
+  // Get colours from the currently active application theme.
   const { colors } = useTheme();
 
+  // Create styles using the active theme colours.
   const styles =
     createStyles(colors);
 
+  // User's editable full name.
   const [name, setName] =
     useState('');
 
+  // Email address associated with the user's account.
   const [email, setEmail] =
     useState('');
 
+  // Password used to confirm account deletion when required.
   const [password, setPassword] =
     useState('');
 
+  // Indicates whether the user signed in using email/password authentication.
   const [usesPassword, setUsesPassword] =
     useState(false);
 
+  // Loading state while retrieving personal information.
   const [loading, setLoading] =
     useState(true);
 
+  // Saving state while updating personal information.
   const [saving, setSaving] =
     useState(false);
 
+  // Deleting state while removing the user's account.
   const [deleting, setDeleting] =
     useState(false);
 
+  /**
+   * Load the user's personal information when
+   * the screen is opened.
+   *
+   * The Firebase authentication providers are also checked
+   * to determine whether password confirmation is required
+   * before account deletion.
+   */
   useEffect(() => {
     const loadPersonalInformation =
       async () => {
         try {
+          // Retrieve saved personal information.
           const information =
             await getPersonalInformation();
 
@@ -77,15 +109,24 @@ export default function PersonalInformationScreen() {
             information.email
           );
 
+          // Get the currently authenticated Firebase user.
           const user =
             auth.currentUser;
 
+          /**
+           * Collect authentication provider IDs.
+           *
+           * Examples may include:
+           * - "password"
+           * - Google authentication provider
+           */
           const providerIds =
             user?.providerData.map(
               (provider) =>
                 provider.providerId
             ) || [];
 
+          // Check whether password authentication is used.
           setUsesPassword(
             providerIds.includes(
               'password'
@@ -109,7 +150,11 @@ export default function PersonalInformationScreen() {
     loadPersonalInformation();
   }, []);
 
+  /**
+   * Save changes to the user's personal information.
+   */
   const handleSave = async () => {
+    // A name is required before saving.
     if (!name.trim()) {
       Alert.alert(
         'Missing name',
@@ -122,6 +167,7 @@ export default function PersonalInformationScreen() {
     try {
       setSaving(true);
 
+      // Save the updated name.
       await savePersonalInformation(
         name
       );
@@ -145,7 +191,17 @@ export default function PersonalInformationScreen() {
     }
   };
 
+  /**
+   * Permanently delete the current user's account.
+   *
+   * Password-based users must enter their password
+   * before the deletion process can continue.
+   *
+   * A confirmation dialog is displayed before the
+   * account is permanently deleted.
+   */
   const handleDeleteAccount = () => {
+    // Require password confirmation for password-based accounts.
     if (
       usesPassword &&
       !password.trim()
@@ -158,6 +214,7 @@ export default function PersonalInformationScreen() {
       return;
     }
 
+    // Ask for final confirmation before deleting the account.
     Alert.alert(
       'Delete account?',
       'This will permanently delete your account and saved data. This action cannot be undone.',
@@ -174,6 +231,11 @@ export default function PersonalInformationScreen() {
             try {
               setDeleting(true);
 
+              /**
+               * Delete the user account and associated data.
+               * The password is passed for authentication
+               * when the account uses password sign-in.
+               */
               await deleteUserAccount(
                 password
               );
@@ -185,6 +247,7 @@ export default function PersonalInformationScreen() {
                   {
                     text: 'OK',
                     onPress: () => {
+                      // Return to the initial login screen.
                       router.replace('/');
                     },
                   },
@@ -196,9 +259,14 @@ export default function PersonalInformationScreen() {
                 error
               );
 
+              // Default account deletion error message.
               let message =
                 'Unable to delete your account.';
 
+              /**
+               * Convert common Firebase authentication errors
+               * into clearer messages for the user.
+               */
               if (error instanceof Error) {
                 if (
                   error.message.includes(
@@ -249,6 +317,7 @@ export default function PersonalInformationScreen() {
         }
         keyboardShouldPersistTaps="handled"
       >
+        {/* Screen header with back navigation */}
         <View
           style={styles.header}
         >
@@ -274,11 +343,13 @@ export default function PersonalInformationScreen() {
             Personal information
           </Text>
 
+          {/* Keeps the screen title visually centred */}
           <View
             style={styles.spacer}
           />
         </View>
 
+        {/* Screen description */}
         <Text
           style={
             styles.description
@@ -287,6 +358,7 @@ export default function PersonalInformationScreen() {
           Update your personal account details.
         </Text>
 
+        {/* Editable full name */}
         <Text
           style={styles.label}
         >
@@ -308,6 +380,7 @@ export default function PersonalInformationScreen() {
           editable={!loading}
         />
 
+        {/* Account email address */}
         <Text
           style={styles.label}
         >
@@ -329,6 +402,10 @@ export default function PersonalInformationScreen() {
           editable={false}
         />
 
+        {/*
+          Email editing is disabled because the email
+          is controlled by the user's authentication method.
+        */}
         <Text
           style={
             styles.emailHelper
@@ -337,6 +414,7 @@ export default function PersonalInformationScreen() {
           Your email is managed by your sign-in method.
         </Text>
 
+        {/* Save personal information changes */}
         <TouchableOpacity
           style={[
             styles.saveButton,
@@ -364,10 +442,12 @@ export default function PersonalInformationScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Separate account settings from the danger zone */}
         <View
           style={styles.divider}
         />
 
+        {/* Account deletion section */}
         <Text
           style={
             styles.dangerTitle
@@ -384,6 +464,10 @@ export default function PersonalInformationScreen() {
           Permanently delete your account and saved data. This action cannot be undone.
         </Text>
 
+        {/*
+          Password confirmation is only displayed for
+          accounts using password authentication.
+        */}
         {usesPassword && (
           <>
             <Text
@@ -410,6 +494,7 @@ export default function PersonalInformationScreen() {
           </>
         )}
 
+        {/* Permanently delete the user account */}
         <TouchableOpacity
           style={[
             styles.deleteButton,
@@ -443,21 +528,27 @@ export default function PersonalInformationScreen() {
   );
 }
 
+/**
+ * Creates theme-aware styles for the Personal Information screen.
+ */
 const createStyles =
   (colors: any) =>
     StyleSheet.create({
+      // Main screen container.
       safeArea: {
         flex: 1,
         backgroundColor:
           colors.background,
       },
 
+      // Scrollable page content.
       content: {
         paddingHorizontal: 22,
         paddingTop: 12,
         paddingBottom: 50,
       },
 
+      // Screen header.
       header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -466,6 +557,7 @@ const createStyles =
         marginBottom: 22,
       },
 
+      // Back navigation button.
       backButton: {
         width: 42,
         height: 42,
@@ -477,16 +569,19 @@ const createStyles =
           'center',
       },
 
+      // Screen title.
       title: {
         fontSize: 20,
         fontWeight: '800',
         color: colors.text,
       },
 
+      // Balances the back button in the header.
       spacer: {
         width: 42,
       },
 
+      // Screen description.
       description: {
         fontSize: 13,
         color:
@@ -494,6 +589,7 @@ const createStyles =
         marginBottom: 28,
       },
 
+      // Form field label.
       label: {
         fontSize: 12,
         fontWeight: '700',
@@ -502,6 +598,7 @@ const createStyles =
         marginBottom: 8,
       },
 
+      // Shared text input style.
       input: {
         height: 52,
         borderWidth: 1,
@@ -515,6 +612,7 @@ const createStyles =
         marginBottom: 20,
       },
 
+      // Style applied to the non-editable email field.
       disabledInput: {
         backgroundColor:
           colors.softBackground,
@@ -523,6 +621,7 @@ const createStyles =
         marginBottom: 8,
       },
 
+      // Explanation displayed below the email field.
       emailHelper: {
         fontSize: 11,
         color:
@@ -530,6 +629,7 @@ const createStyles =
         marginBottom: 20,
       },
 
+      // Save changes button.
       saveButton: {
         height: 54,
         backgroundColor:
@@ -541,16 +641,19 @@ const createStyles =
         marginTop: 10,
       },
 
+      // Disabled state while loading or saving.
       saveButtonDisabled: {
         opacity: 0.6,
       },
 
+      // Save button text.
       saveText: {
         color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '800',
       },
 
+      // Divider before the account deletion section.
       divider: {
         height: 1,
         backgroundColor:
@@ -558,6 +661,7 @@ const createStyles =
         marginVertical: 32,
       },
 
+      // Account deletion heading.
       dangerTitle: {
         fontSize: 18,
         fontWeight: '800',
@@ -566,6 +670,7 @@ const createStyles =
         marginBottom: 8,
       },
 
+      // Account deletion warning.
       dangerDescription: {
         fontSize: 12,
         lineHeight: 18,
@@ -574,6 +679,7 @@ const createStyles =
         marginBottom: 20,
       },
 
+      // Delete account button.
       deleteButton: {
         height: 54,
         borderRadius: 16,
@@ -589,10 +695,12 @@ const createStyles =
         gap: 8,
       },
 
+      // Disabled state while account deletion is running.
       deleteButtonDisabled: {
         opacity: 0.6,
       },
 
+      // Delete account button text.
       deleteText: {
         color:
           colors.danger,

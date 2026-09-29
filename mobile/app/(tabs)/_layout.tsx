@@ -4,19 +4,34 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTheme } from '../../theme/ThemeContext';
 
+/**
+ * Main bottom tab navigation layout.
+ *
+ * This layout provides navigation between:
+ * Home, Items, Scan, Summary and Account.
+ *
+ * The Scan tab uses a custom raised camera button
+ * to make the receipt scanning function easier to access.
+ */
 export default function TabLayout() {
+  // Get the current theme colours.
+  // These colours automatically change based on the selected theme.
   const { colors } = useTheme();
 
+  // Create styles using the current theme colours.
   const styles = createStyles(colors);
 
   return (
     <Tabs
       screenOptions={{
+        // Hide the default header for all tab screens.
         headerShown: false,
 
+        // Tab icon and text colours.
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedText,
 
+        // Main bottom navigation bar styling.
         tabBarStyle: {
           height: 78,
           paddingTop: 8,
@@ -26,12 +41,14 @@ export default function TabLayout() {
           backgroundColor: colors.card,
         },
 
+        // Styling for tab labels.
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
         },
       }}
     >
+      {/* Home tab */}
       <Tabs.Screen
         name="home"
         options={{
@@ -46,6 +63,7 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Items tab - displays receipt/expense items */}
       <Tabs.Screen
         name="items"
         options={{
@@ -60,12 +78,22 @@ export default function TabLayout() {
         }}
       />
 
+      {/*
+        Scan tab.
+
+        This tab uses a custom button instead of the standard
+        tab icon. The button is raised above the navigation bar
+        so that receipt scanning is the main action.
+      */}
       <Tabs.Screen
         name="scan"
         options={{
           title: '',
+
+          // Hide the text label under the Scan button.
           tabBarLabel: () => null,
 
+          // Custom camera button for the Scan screen.
           tabBarButton: (props) => (
             <TouchableOpacity
               activeOpacity={0.85}
@@ -84,6 +112,7 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Summary tab - displays expense summaries and charts */}
       <Tabs.Screen
         name="summary"
         options={{
@@ -98,6 +127,7 @@ export default function TabLayout() {
         }}
       />
 
+      {/* Account tab - user account and related settings */}
       <Tabs.Screen
         name="account"
         options={{
@@ -115,13 +145,21 @@ export default function TabLayout() {
   );
 }
 
+/**
+ * Creates styles for the tab navigation.
+ *
+ * The styles use theme colours so the navigation
+ * remains consistent with the rest of the application.
+ */
 const createStyles = (colors: any) =>
   StyleSheet.create({
+    // Container used to centre the custom Scan button.
     cameraButtonContainer: {
       flex: 1,
       alignItems: 'center',
     },
 
+    // Raised circular camera button in the centre of the tab bar.
     cameraButton: {
       position: 'absolute',
       top: -22,
@@ -136,9 +174,11 @@ const createStyles = (colors: any) =>
       justifyContent: 'center',
       alignItems: 'center',
 
+      // Border separates the button from the tab bar.
       borderWidth: 6,
       borderColor: colors.card,
 
+      // Shadow for iOS.
       shadowColor: colors.primary,
       shadowOffset: {
         width: 0,
@@ -147,6 +187,7 @@ const createStyles = (colors: any) =>
       shadowOpacity: 0.25,
       shadowRadius: 8,
 
+      // Shadow for Android.
       elevation: 8,
     },
   });
